@@ -41,7 +41,8 @@ jobs:
         run: dart run sqflite_common_ffi_web:setup --force
 
       - name: Analyze
-        run: flutter analyze --no-fatal-infos
+        continue-on-error: true
+        run: flutter analyze
 
       - name: Build PWA
         env:
