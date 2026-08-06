@@ -5,17 +5,6 @@ import 'colors.dart';
 class AppTheme {
   AppTheme._();
 
-  static const _pageTransitions = PageTransitionsTheme(
-    builders: {
-      TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-      TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
-      TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
-      TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
-      TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
-      TargetPlatform.fuchsia: FadeForwardsPageTransitionsBuilder(),
-    },
-  );
-
   static ThemeData get light {
     final scheme = ColorScheme.fromSeed(
       seedColor: AppColors.primary,
@@ -27,7 +16,6 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: const Color(0xFFF4F6F8),
-      pageTransitionsTheme: _pageTransitions,
       splashFactory: InkSparkle.splashFactory,
       visualDensity: VisualDensity.adaptivePlatformDensity,
       appBarTheme: AppBarTheme(
@@ -112,7 +100,6 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: const Color(0xFF0C1016),
-      pageTransitionsTheme: _pageTransitions,
       splashFactory: InkSparkle.splashFactory,
       visualDensity: VisualDensity.adaptivePlatformDensity,
       appBarTheme: AppBarTheme(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../features/profile/profile_screen.dart';
 import '../../models/app_settings.dart';
 import '../../repositories/settings_repository.dart';
 import '../../widgets/bus_card.dart';
@@ -614,6 +615,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
 
             const SizedBox(height: 24),
+
+            BusCard(
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const CircleAvatar(
+                  child: Icon(Icons.cloud_done_outlined),
+                ),
+                title: const Text(
+                  'Облачный профиль',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                subtitle: const Text(
+                  'Имя, аккаунт Supabase и выход',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => const ProfileScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 16),
 
             BusCard(
               child: Column(

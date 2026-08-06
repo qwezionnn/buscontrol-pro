@@ -1,7 +1,7 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../screens/home/home_screen.dart';
+import '../features/auth/auth_gate.dart';
 import 'theme.dart';
 
 class BusControlApp extends StatelessWidget {
@@ -29,7 +29,7 @@ class BusControlApp extends StatelessWidget {
           child: child ?? const SizedBox.shrink(),
         );
       },
-      home: const HomeScreen(),
+      home: const AuthGate(),
     );
   }
 }
