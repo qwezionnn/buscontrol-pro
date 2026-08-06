@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="BusControl PRO — рейсы, заказы, топливо, финансы и обслуживание транспорта.">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#102D52">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BusControl PRO">
+
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="manifest" href="manifest.json">
+
+  <title>BusControl PRO</title>
+
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: #102D52;
+      overflow: hidden;
+    }
+    #pwa-splash {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      background: #102D52;
+      color: white;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      transition: opacity .25s ease;
+      z-index: 9999;
+    }
+    #pwa-splash img {
+      width: 132px;
+      height: 132px;
+      border-radius: 28px;
+    }
+    #pwa-splash strong {
+      font-size: 24px;
+      letter-spacing: .2px;
+    }
+    #pwa-splash span {
+      opacity: .75;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div id="pwa-splash">
+    <img src="icons/Icon-192.png" alt="BusControl PRO">
+    <strong>BusControl PRO</strong>
+    <span>Подготовка данных…</span>
+  </div>
+
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      const splash = document.getElementById('pwa-splash');
+      if (!splash) return;
+      splash.style.opacity = '0';
+      setTimeout(() => splash.remove(), 260);
+    });
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
