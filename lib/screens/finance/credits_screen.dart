@@ -153,6 +153,36 @@ class _CreditsScreenState extends State<CreditsScreen> {
     }
   }
 
+  Future<void> _delete(Credit credit) async {
+    final confirmed = await showAdaptiveDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog.adaptive(
+        title: const Text('Удалить кредит?'),
+        content: Text(
+          'Кредит «${credit.title}» и вся история его платежей будут удалены.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await _repository.deleteCredit(credit.id!);
+      await _load();
+    } catch (error) {
+      _showError('Не удалось удалить кредит: $error');
+    }
+  }
+
   String _vehicleName(int? vehicleId) {
     if (vehicleId == null) return 'Общий кредит';
     for (final vehicle in _vehicles) {
@@ -235,6 +265,9 @@ class _CreditsScreenState extends State<CreditsScreen> {
                               case 'archive':
                                 await _archive(credit);
                                 break;
+                              case 'delete':
+                                await _delete(credit);
+                                break;
                             }
                           },
                           itemBuilder: (_) => [
@@ -252,6 +285,10 @@ class _CreditsScreenState extends State<CreditsScreen> {
                                 value: 'archive',
                                 child: Text('Архивировать'),
                               ),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Удалить'),
+                            ),
                           ],
                         ),
                       ),

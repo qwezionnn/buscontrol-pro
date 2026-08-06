@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/services/cloud_sync_service.dart';
 import '../../models/vehicle.dart';
 import '../../repositories/settings_repository.dart';
 import '../../repositories/vehicle_repository.dart';
@@ -24,6 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
       SettingsRepository.instance;
   final VehicleRepository _vehicleRepository =
       VehicleRepository.instance;
+  final CloudSyncService _cloudSyncService = CloudSyncService.instance;
 
   int _currentIndex = 0;
   int _refreshVersion = 0;
@@ -35,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _settingsRepository.addListener(_handleChanged);
     _vehicleRepository.addListener(_handleVehicleChanged);
+    _cloudSyncService.addListener(_handleCloudChanged);
     _loadVehicles();
   }
 
@@ -42,7 +45,15 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _settingsRepository.removeListener(_handleChanged);
     _vehicleRepository.removeListener(_handleVehicleChanged);
+    _cloudSyncService.removeListener(_handleCloudChanged);
     super.dispose();
+  }
+
+
+  void _handleCloudChanged() {
+    if (!mounted) return;
+    _loadVehicles();
+    setState(() => _refreshVersion++);
   }
 
   void _handleChanged() {

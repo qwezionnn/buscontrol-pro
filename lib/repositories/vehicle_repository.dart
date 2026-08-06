@@ -64,4 +64,9 @@ class VehicleRepository extends ChangeNotifier {
     await _database.archiveVehicle(id);
     notifyListeners();
   }
+
+  Future<void> deleteVehicle(int id) async {
+    await _database.deleteVehicle(id);
+    notifyListeners();
+  }
 }

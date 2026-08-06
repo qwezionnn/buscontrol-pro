@@ -138,6 +138,40 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     }
   }
 
+  Future<void> _delete(Vehicle vehicle) async {
+    final confirmed = await showAdaptiveDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog.adaptive(
+        title: const Text('Удалить автобус?'),
+        content: Text(
+          'Будут удалены автобус «${vehicle.displayName}» и связанные с ним '
+          'рейсы, заказы, топливо, расходы, пробег, ТО и кредиты.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await _repository.deleteVehicle(vehicle.id!);
+      await _load();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -184,6 +218,8 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                           await _edit(vehicle);
                         } else if (value == 'archive') {
                           await _archive(vehicle);
+                        } else if (value == 'delete') {
+                          await _delete(vehicle);
                         }
                       },
                       itemBuilder: (_) => [
@@ -201,6 +237,10 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                             value: 'archive',
                             child: Text('Архивировать'),
                           ),
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Text('Удалить'),
+                        ),
                       ],
                     ),
                   ),

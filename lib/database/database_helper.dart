@@ -40,7 +40,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 7,
+      version: 8,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -62,6 +62,9 @@ class DatabaseHelper {
   ) async {
     if (oldVersion < 6) {
       await _upgradeToVersion6(db);
+    }
+    if (oldVersion < 8) {
+      await _upgradeToVersion8(db);
     }
     await _createTables(db);
     await _insertDefaultSettings(db);
@@ -230,6 +233,11 @@ class DatabaseHelper {
     await db.execute(
       'CREATE INDEX IF NOT EXISTS index_trips_date ON trips(date)',
     );
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS index_standard_trips_unique
+      ON trips(vehicle_id, date, type)
+      WHERE type IN ('morning', 'evening')
+    ''');
     await db.execute(
       'CREATE INDEX IF NOT EXISTS index_orders_date ON orders(date)',
     );
@@ -369,6 +377,26 @@ class DatabaseHelper {
     }
   }
 
+  Future<void> _upgradeToVersion8(Database db) async {
+    // Удаляем только повторные стандартные рейсы, оставляя самую раннюю запись.
+    await db.execute('''
+      DELETE FROM trips
+      WHERE type IN ('morning', 'evening')
+        AND id NOT IN (
+          SELECT MIN(id)
+          FROM trips
+          WHERE type IN ('morning', 'evening')
+          GROUP BY vehicle_id, date, type
+        )
+    ''');
+
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS index_standard_trips_unique
+      ON trips(vehicle_id, date, type)
+      WHERE type IN ('morning', 'evening')
+    ''');
+  }
+
   Future<void> _ensureDefaultVehicle(DatabaseExecutor db) async {
     final rows = await db.query('vehicles', limit: 1);
     if (rows.isEmpty) {
@@ -481,6 +509,103 @@ class DatabaseHelper {
     );
   }
 
+  Future<void> deleteVehicle(int id) async {
+    final db = await database;
+
+    await db.transaction((transaction) async {
+      final vehicles = await transaction.query(
+        'vehicles',
+        columns: ['id'],
+        where: 'id != ?',
+        whereArgs: [id],
+        orderBy: 'id ASC',
+      );
+      if (vehicles.isEmpty) {
+        throw StateError('Нельзя удалить единственный транспорт.');
+      }
+
+      final orderRows = await transaction.query(
+        'orders',
+        columns: ['id'],
+        where: 'vehicle_id = ?',
+        whereArgs: [id],
+      );
+      final orderIds = orderRows
+          .map((row) => row['id'])
+          .whereType<int>()
+          .toList();
+      for (final orderId in orderIds) {
+        await transaction.delete(
+          'order_payments',
+          where: 'order_id = ?',
+          whereArgs: [orderId],
+        );
+      }
+
+      final creditRows = await transaction.query(
+        'credits',
+        columns: ['id'],
+        where: 'vehicle_id = ?',
+        whereArgs: [id],
+      );
+      final creditIds = creditRows
+          .map((row) => row['id'])
+          .whereType<int>()
+          .toList();
+      for (final creditId in creditIds) {
+        await transaction.delete(
+          'credit_payments',
+          where: 'credit_id = ?',
+          whereArgs: [creditId],
+        );
+      }
+
+      for (final table in <String>[
+        'daily_logs',
+        'trips',
+        'orders',
+        'fuel_logs',
+        'expenses',
+        'maintenance_items',
+        'trip_payouts',
+        'credits',
+      ]) {
+        await transaction.delete(
+          table,
+          where: 'vehicle_id = ?',
+          whereArgs: [id],
+        );
+      }
+
+      await transaction.delete(
+        'vehicles',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+
+      final activeRows = await transaction.query(
+        'settings',
+        columns: ['value'],
+        where: 'key = ?',
+        whereArgs: ['active_vehicle_id'],
+        limit: 1,
+      );
+      final activeId = activeRows.isEmpty
+          ? null
+          : int.tryParse(activeRows.first['value']?.toString() ?? '');
+      if (activeId == id) {
+        await transaction.insert(
+          'settings',
+          {
+            'key': 'active_vehicle_id',
+            'value': vehicles.first['id'].toString(),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+  }
+
   Future<List<Map<String, Object?>>> getCredits({
     bool includeArchived = false,
   }) async {
@@ -549,6 +674,22 @@ class DatabaseHelper {
       where: 'id = ?',
       whereArgs: [id],
     );
+  }
+
+  Future<void> deleteCredit(int id) async {
+    final db = await database;
+    await db.transaction((transaction) async {
+      await transaction.delete(
+        'credit_payments',
+        where: 'credit_id = ?',
+        whereArgs: [id],
+      );
+      await transaction.delete(
+        'credits',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    });
   }
 
   Future<int> addCreditPayment({
@@ -674,18 +815,25 @@ class DatabaseHelper {
     required String type,
     required double price,
     bool completed = false,
+    bool ignoreConflict = false,
   }) async {
     final db = await database;
     final vehicleId = await getActiveVehicleId();
-    return db.insert('trips', {
-      'vehicle_id': vehicleId,
-      'date': date,
-      'time': time,
-      'title': title,
-      'type': type,
-      'price': price,
-      'completed': completed ? 1 : 0,
-    });
+    return db.insert(
+      'trips',
+      {
+        'vehicle_id': vehicleId,
+        'date': date,
+        'time': time,
+        'title': title,
+        'type': type,
+        'price': price,
+        'completed': completed ? 1 : 0,
+      },
+      conflictAlgorithm: ignoreConflict
+          ? ConflictAlgorithm.ignore
+          : ConflictAlgorithm.abort,
+    );
   }
 
   Future<List<Map<String, Object?>>> getTripsByDate(String date) async {
@@ -1196,6 +1344,101 @@ class DatabaseHelper {
     );
   }
 
+
+
+
+  static const List<String> _syncTables = <String>[
+    'vehicles',
+    'settings',
+    'daily_logs',
+    'trips',
+    'orders',
+    'order_payments',
+    'fuel_logs',
+    'expenses',
+    'maintenance_items',
+    'trip_payouts',
+    'credits',
+    'credit_payments',
+  ];
+
+  /// Создаёт переносимый снимок всей локальной рабочей базы.
+  /// Служебные ключи синхронизации не включаются в снимок,
+  /// чтобы они не вызывали бесконечную повторную загрузку.
+  Future<Map<String, dynamic>> exportCloudSnapshot() async {
+    final db = await database;
+    final tables = <String, dynamic>{};
+
+    for (final table in _syncTables) {
+      if (table == 'settings') {
+        tables[table] = await db.query(
+          table,
+          where: "key NOT LIKE 'cloud_sync_%'",
+          orderBy: 'key ASC',
+        );
+      } else {
+        tables[table] = await db.query(table, orderBy: 'id ASC');
+      }
+    }
+
+    return <String, dynamic>{
+      'format': 1,
+      'database_version': 7,
+      'exported_at': DateTime.now().toUtc().toIso8601String(),
+      'tables': tables,
+    };
+  }
+
+  /// Полностью заменяет локальные пользовательские данные снимком из облака.
+  /// Выполняется одной транзакцией, поэтому неполное восстановление невозможно.
+  Future<void> importCloudSnapshot(Map<String, dynamic> snapshot) async {
+    final rawTables = snapshot['tables'];
+    if (rawTables is! Map) {
+      throw const FormatException('Некорректный формат облачного снимка.');
+    }
+
+    final db = await database;
+    await db.transaction((transaction) async {
+      await transaction.execute('PRAGMA foreign_keys = OFF');
+
+      // Сначала дочерние таблицы, затем родительские.
+      for (final table in <String>[
+        'order_payments',
+        'credit_payments',
+        'daily_logs',
+        'trips',
+        'orders',
+        'fuel_logs',
+        'expenses',
+        'maintenance_items',
+        'trip_payouts',
+        'credits',
+        'vehicles',
+        'settings',
+      ]) {
+        await transaction.delete(table);
+      }
+
+      // Родительские таблицы должны быть восстановлены раньше дочерних.
+      for (final table in _syncTables) {
+        final rows = rawTables[table];
+        if (rows is! List) continue;
+
+        for (final rawRow in rows) {
+          if (rawRow is! Map) continue;
+          await transaction.insert(
+            table,
+            Map<String, Object?>.from(rawRow),
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+      }
+
+      await _insertDefaultSettings(transaction);
+      await _ensureDefaultVehicle(transaction);
+      await transaction.execute('PRAGMA foreign_keys = ON');
+    });
+  }
 
   /// Полностью удаляет пользовательские данные и возвращает
   /// настройки к значениям по умолчанию.

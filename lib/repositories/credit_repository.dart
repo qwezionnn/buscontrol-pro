@@ -81,4 +81,9 @@ class CreditRepository extends ChangeNotifier {
     final rows = await _database.getCreditPayments(creditId);
     return rows.map(CreditPayment.fromMap).toList();
   }
+
+  Future<void> deleteCredit(int id) async {
+    await _database.deleteCredit(id);
+    notifyListeners();
+  }
 }

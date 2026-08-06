@@ -53,6 +53,7 @@ class TripRepository {
         title: 'Утренний рейс',
         type: TripType.morning.name,
         price: price,
+        ignoreConflict: true,
       );
     } else {
       final id = morningRow['id'];
@@ -73,6 +74,7 @@ class TripRepository {
         title: 'Вечерний рейс',
         type: TripType.evening.name,
         price: price,
+        ignoreConflict: true,
       );
     } else {
       final id = eveningRow['id'];
