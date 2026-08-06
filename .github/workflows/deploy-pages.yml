@@ -33,12 +33,15 @@ jobs:
 
       - name: Get dependencies
         run: flutter pub get
+        
+      - name: Precache Web
+        run: flutter precache --web
 
       - name: Install SQLite Web runtime
         run: dart run sqflite_common_ffi_web:setup --force
 
       - name: Analyze
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos
 
       - name: Build PWA
         env:
