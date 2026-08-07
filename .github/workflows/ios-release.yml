@@ -148,6 +148,7 @@ jobs:
                   "bundleIdentifier": bundle_id,
                   "developerName": "BusControl PRO",
                   "subtitle": "Bus management and finance",
+                  "iconURL": "https://raw.githubusercontent.com/qwezionnn/buscontrol-pro/main/sidestore/Icon-App-1024x1024%401x.png",
                   "localizedDescription": "BusControl PRO for iPhone.",
                   "category": "utilities",
                   "versions": []
@@ -155,6 +156,7 @@ jobs:
               apps.append(app)
 
           app["bundleIdentifier"] = bundle_id
+          app["iconURL"] = "https://raw.githubusercontent.com/qwezionnn/buscontrol-pro/main/sidestore/Icon-App-1024x1024%401x.png"
 
           versions = app.setdefault("versions", [])
 
