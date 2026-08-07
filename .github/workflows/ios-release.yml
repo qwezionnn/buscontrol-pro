@@ -35,13 +35,16 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Analyze
+        continue-on-error: true
+        run: flutter analyze
+
       - name: Read version
         id: version
         shell: bash
         run: |
           RAW_VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
           VERSION_NAME="${RAW_VERSION%%+*}"
-          ORIGINAL_BUILD="${RAW_VERSION##*+}"
           BUILD_NUMBER="${{ github.run_number }}"
 
           echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
@@ -64,7 +67,7 @@ jobs:
 
       - name: Create IPA
         run: |
-          mkdir Payload
+          mkdir -p Payload
           cp -R build/ios/iphoneos/Runner.app Payload/
           zip -qry BusControl_PRO.ipa Payload
           rm -rf Payload
@@ -75,7 +78,6 @@ jobs:
         run: |
           SIZE=$(stat -f%z BusControl_PRO.ipa)
           SHA256=$(shasum -a 256 BusControl_PRO.ipa | awk '{print $1}')
-
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" build/ios/iphoneos/Runner.app/Info.plist)
           MIN_IOS=$(/usr/libexec/PlistBuddy -c "Print :MinimumOSVersion" build/ios/iphoneos/Runner.app/Info.plist || echo "13.0")
 
@@ -121,6 +123,12 @@ jobs:
           min_ios = "${{ steps.ipa.outputs.min_ios }}"
           tag = "${{ steps.version.outputs.tag }}"
 
+          icon_url = (
+              "https://raw.githubusercontent.com/"
+              "qwezionnn/buscontrol-pro/main/"
+              "sidestore/Icon-App-1024x1024%401x.png"
+          )
+
           download_url = (
               "https://github.com/qwezionnn/buscontrol-pro/"
               f"releases/download/{tag}/BusControl_PRO.ipa"
@@ -148,15 +156,20 @@ jobs:
                   "bundleIdentifier": bundle_id,
                   "developerName": "BusControl PRO",
                   "subtitle": "Bus management and finance",
-                  "iconURL": "https://raw.githubusercontent.com/qwezionnn/buscontrol-pro/main/sidestore/Icon-App-1024x1024%401x.png",
                   "localizedDescription": "BusControl PRO for iPhone.",
+                  "iconURL": icon_url,
                   "category": "utilities",
                   "versions": []
               }
               apps.append(app)
 
+          app["name"] = "BusControl PRO"
           app["bundleIdentifier"] = bundle_id
-          app["iconURL"] = "https://raw.githubusercontent.com/qwezionnn/buscontrol-pro/main/sidestore/Icon-App-1024x1024%401x.png"
+          app["developerName"] = "BusControl PRO"
+          app["subtitle"] = "Bus management and finance"
+          app["localizedDescription"] = "BusControl PRO for iPhone."
+          app["iconURL"] = icon_url
+          app["category"] = "utilities"
 
           versions = app.setdefault("versions", [])
 
@@ -172,6 +185,7 @@ jobs:
           app["versions"] = versions
 
           source_path.parent.mkdir(parents=True, exist_ok=True)
+
           source_path.write_text(
               json.dumps(source, ensure_ascii=False, indent=2),
               encoding="utf-8"
@@ -197,3 +211,4 @@ jobs:
         with:
           name: BusControl-PRO-iOS
           path: BusControl_PRO.ipa
+          if-no-files-found: error
