@@ -2,5 +2,27 @@
   "name": "BusControl PRO",
   "subtitle": "Official BusControl PRO releases",
   "description": "Official SideStore source for BusControl PRO.",
-  "apps": []
+  "apps": [
+    {
+      "name": "BusControl PRO",
+      "bundleIdentifier": "com.example.busControlPro",
+      "developerName": "BusControl PRO",
+      "subtitle": "Bus management and finance",
+      "localizedDescription": "BusControl PRO for iPhone.",
+      "category": "utilities",
+      "versions": [
+        {
+          "version": "4.0.0",
+          "buildVersion": "2",
+          "marketingVersion": "4.0.0 (2)",
+          "date": "2026-08-07T04:50:28.094012+00:00",
+          "localizedDescription": "Automatic BusControl PRO build.",
+          "downloadURL": "https://github.com/qwezionnn/buscontrol-pro/releases/download/v4.0.0-2/BusControl_PRO.ipa",
+          "size": 11042554,
+          "sha256": "8e8a46b41c48a3c3a6250a625220d028094a015033bd4e02e4df00b6d4642783",
+          "minOSVersion": "13.0"
+        }
+      ]
+    }
+  ]
 }
