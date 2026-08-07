@@ -9,6 +9,7 @@
       "developerName": "BusControl PRO",
       "subtitle": "Bus management and finance",
       "localizedDescription": "BusControl PRO for iPhone.",
+      "iconURL": "https://raw.githubusercontent.com/qwezionnn/buscontrol-pro/main/sidestore/Icon-App-1024x1024%401x.png",
       "category": "utilities",
       "versions": [
         {
@@ -44,8 +45,7 @@
           "sha256": "8e8a46b41c48a3c3a6250a625220d028094a015033bd4e02e4df00b6d4642783",
           "minOSVersion": "13.0"
         }
-      ],
-      "iconURL": "https://raw.githubusercontent.com/qwezionnn/buscontrol-pro/main/sidestore/Icon-App-1024x1024%401x.png"
+      ]
     }
   ]
 }
