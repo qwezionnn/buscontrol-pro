@@ -46,6 +46,26 @@ class OrderRepository {
     );
   }
 
+  Future<void> updateOrder(Order order) {
+    final id = order.id;
+    if (id == null) {
+      throw ArgumentError('Нельзя изменить заказ без id.');
+    }
+    return _databaseHelper.updateOrder(
+      orderId: id,
+      title: order.title,
+      date: order.date,
+      time: order.time,
+      type: order.type.name,
+      hours: order.hours,
+      kilometers: order.kilometers,
+      rate: order.rate,
+      amount: order.amount,
+      reminderHours: order.reminderHours,
+      note: order.note,
+    );
+  }
+
   /// Устанавливает статус заказа.
   Future<void> setStatus({
     required int orderId,
@@ -82,11 +102,17 @@ class OrderRepository {
   Future<int> addPayment({
     required int orderId,
     required double amount,
+    required double vehiclePercent,
+    required double personalPercent,
+    required Map<String, double> creditPercents,
     String? note,
   }) {
     return _databaseHelper.addOrderPayment(
       orderId: orderId,
       amount: amount,
+      vehiclePercent: vehiclePercent,
+      personalPercent: personalPercent,
+      creditPercents: creditPercents,
       note: note,
     );
   }

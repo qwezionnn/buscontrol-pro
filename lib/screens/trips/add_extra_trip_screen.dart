@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../../database/database_helper.dart';
 
 class AddExtraTripScreen extends StatefulWidget {
-  const AddExtraTripScreen({super.key});
+  const AddExtraTripScreen({super.key, this.initialDate});
+
+  final DateTime? initialDate;
 
   @override
   State<AddExtraTripScreen> createState() =>
@@ -21,6 +23,15 @@ class _AddExtraTripScreenState
   TimeOfDay _selectedTime = TimeOfDay.now();
 
   bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final initialDate = widget.initialDate;
+    if (initialDate != null) {
+      _selectedDate = DateTime(initialDate.year, initialDate.month, initialDate.day);
+    }
+  }
 
   @override
   void dispose() {

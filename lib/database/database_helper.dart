@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
@@ -40,7 +41,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 8,
+      version: 9,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -65,6 +66,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 8) {
       await _upgradeToVersion8(db);
+    }
+    if (oldVersion < 9) {
+      await _upgradeToVersion9(db);
     }
     await _createTables(db);
     await _insertDefaultSettings(db);
@@ -123,6 +127,9 @@ class DatabaseHelper {
         amount REAL NOT NULL,
         paid_at TEXT NOT NULL,
         note TEXT,
+        vehicle_percent REAL,
+        personal_percent REAL,
+        credit_distribution TEXT,
         FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
       )
     ''');
@@ -395,6 +402,29 @@ class DatabaseHelper {
       ON trips(vehicle_id, date, type)
       WHERE type IN ('morning', 'evening')
     ''');
+  }
+
+  Future<void> _upgradeToVersion9(Database db) async {
+    Future<bool> hasColumn(String table, String column) async {
+      final rows = await db.rawQuery('PRAGMA table_info($table)');
+      return rows.any((row) => row['name'] == column);
+    }
+
+    if (!await hasColumn('order_payments', 'vehicle_percent')) {
+      await db.execute(
+        'ALTER TABLE order_payments ADD COLUMN vehicle_percent REAL',
+      );
+    }
+    if (!await hasColumn('order_payments', 'personal_percent')) {
+      await db.execute(
+        'ALTER TABLE order_payments ADD COLUMN personal_percent REAL',
+      );
+    }
+    if (!await hasColumn('order_payments', 'credit_distribution')) {
+      await db.execute(
+        'ALTER TABLE order_payments ADD COLUMN credit_distribution TEXT',
+      );
+    }
   }
 
   Future<void> _ensureDefaultVehicle(DatabaseExecutor db) async {
@@ -920,6 +950,39 @@ class DatabaseHelper {
     });
   }
 
+  Future<void> updateOrder({
+    required int orderId,
+    required String title,
+    required String date,
+    required String time,
+    required String type,
+    double? hours,
+    double? kilometers,
+    required double rate,
+    required double amount,
+    int reminderHours = 12,
+    String? note,
+  }) async {
+    final db = await database;
+    await db.update(
+      'orders',
+      {
+        'title': title,
+        'date': date,
+        'time': time,
+        'type': type,
+        'hours': hours,
+        'kilometers': kilometers,
+        'rate': rate,
+        'amount': amount,
+        'reminder_hours': reminderHours,
+        'note': note,
+      },
+      where: 'id = ?',
+      whereArgs: [orderId],
+    );
+  }
+
   Future<List<Map<String, Object?>>> getOrdersByDate(String date) async {
     final db = await database;
     return db.rawQuery(
@@ -962,10 +1025,22 @@ class DatabaseHelper {
   Future<int> addOrderPayment({
     required int orderId,
     required double amount,
+    required double vehiclePercent,
+    required double personalPercent,
+    required Map<String, double> creditPercents,
     String? note,
   }) async {
     if (amount <= 0) {
       throw ArgumentError('Сумма оплаты должна быть больше нуля.');
+    }
+
+    final totalPercent = vehiclePercent +
+        personalPercent +
+        creditPercents.values.fold<double>(0, (sum, value) => sum + value);
+    if ((totalPercent - 100).abs() > 0.01) {
+      throw ArgumentError(
+        'Сумма процентов распределения должна быть равна 100%.',
+      );
     }
 
     final db = await database;
@@ -986,7 +1061,8 @@ class DatabaseHelper {
 
       final total = (orders.first['amount'] as num).toDouble();
       final paidRows = await transaction.rawQuery(
-        'SELECT COALESCE(SUM(amount), 0) AS total FROM order_payments WHERE order_id = ?',
+        'SELECT COALESCE(SUM(amount), 0) AS total '
+        'FROM order_payments WHERE order_id = ?',
         [orderId],
       );
       final paid = (paidRows.first['total'] as num?)?.toDouble() ?? 0;
@@ -1002,6 +1078,9 @@ class DatabaseHelper {
         'amount': amount,
         'paid_at': DateTime.now().toIso8601String(),
         'note': note,
+        'vehicle_percent': vehiclePercent,
+        'personal_percent': personalPercent,
+        'credit_distribution': jsonEncode(creditPercents),
       });
 
       await transaction.update(
@@ -1021,6 +1100,21 @@ class DatabaseHelper {
       where: 'order_id = ?',
       whereArgs: [orderId],
       orderBy: 'paid_at DESC, id DESC',
+    );
+  }
+
+  Future<List<Map<String, Object?>>> getCompletedOrderPayments() async {
+    final db = await database;
+    final vehicleId = await getActiveVehicleId();
+    return db.rawQuery(
+      '''
+      SELECT p.*
+      FROM order_payments p
+      INNER JOIN orders o ON o.id = p.order_id
+      WHERE o.vehicle_id = ? AND o.status = 'completed'
+      ORDER BY p.paid_at ASC, p.id ASC
+      ''',
+      [vehicleId],
     );
   }
 
@@ -1383,7 +1477,7 @@ class DatabaseHelper {
 
     return <String, dynamic>{
       'format': 1,
-      'database_version': 7,
+      'database_version': 9,
       'exported_at': DateTime.now().toUtc().toIso8601String(),
       'tables': tables,
     };

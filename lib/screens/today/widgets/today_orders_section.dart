@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../../../models/app_settings.dart';
@@ -103,6 +105,18 @@ class _TodayOrdersSectionState extends State<TodayOrdersSection> {
     );
   }
 
+  Future<void> _editOrder(Order order) async {
+    final wasSaved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (context) => AddOrderScreen(order: order),
+      ),
+    );
+
+    if (wasSaved == true) {
+      await _loadOrders();
+    }
+  }
+
   Future<void> _markCompleted(Order order) async {
     final orderId = order.id;
 
@@ -161,6 +175,8 @@ class _TodayOrdersSectionState extends State<TodayOrdersSection> {
           order: order,
           firstPayment: firstPayment,
           formatMoney: _formatMoney,
+          settings: _settings,
+          credits: _credits,
         );
       },
     );
@@ -173,6 +189,9 @@ class _TodayOrdersSectionState extends State<TodayOrdersSection> {
       await _repository.addPayment(
         orderId: orderId,
         amount: result.amount,
+        vehiclePercent: result.vehiclePercent,
+        personalPercent: result.personalPercent,
+        creditPercents: result.creditPercents,
         note: result.note,
       );
 
@@ -190,7 +209,7 @@ class _TodayOrdersSectionState extends State<TodayOrdersSection> {
         return;
       }
 
-      await _showPaymentDistribution(result.amount);
+      await _showPaymentDistribution(result);
     } catch (error) {
       if (!mounted) {
         return;
@@ -204,7 +223,9 @@ class _TodayOrdersSectionState extends State<TodayOrdersSection> {
     }
   }
 
-  Future<void> _showPaymentDistribution(double amount) {
+  Future<void> _showPaymentDistribution(
+    _PaymentDialogResult result,
+  ) {
     return showAdaptiveDialog<void>(
       context: context,
       builder: (dialogContext) {
@@ -215,7 +236,7 @@ class _TodayOrdersSectionState extends State<TodayOrdersSection> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Получено сейчас: ${_formatMoney(amount)}',
+                'Получено сейчас: ${_formatMoney(result.amount)}',
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -223,40 +244,36 @@ class _TodayOrdersSectionState extends State<TodayOrdersSection> {
               ),
               const Divider(height: 24),
               _buildDialogDistributionRow(
-                'На машину',
-                _settings.workFundPercent,
-                _distributionAmount(amount, _settings.workFundPercent),
+                'На автобус',
+                result.vehiclePercent,
+                _distributionAmount(
+                  result.amount,
+                  result.vehiclePercent,
+                ),
               ),
               const SizedBox(height: 12),
-              if (_credits.isEmpty)
+              for (final entry in result.creditPercents.entries) ...[
                 _buildDialogDistributionRow(
-                  'На кредит',
-                  _settings.loanFundPercent,
-                  _distributionAmount(amount, _settings.loanFundPercent),
-                )
-              else
-                for (final credit in _credits.where(
-                  (credit) => !credit.archived && !credit.isClosed,
-                )) ...[
-                  _buildDialogDistributionRow(
-                    credit.title,
-                    credit.incomePercent,
-                    _distributionAmount(amount, credit.incomePercent),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-              if (_credits.isEmpty) const SizedBox(height: 12),
+                  entry.key,
+                  entry.value,
+                  _distributionAmount(result.amount, entry.value),
+                ),
+                const SizedBox(height: 12),
+              ],
               _buildDialogDistributionRow(
-                'Себе',
-                _settings.personalFundPercent,
-                _distributionAmount(amount, _settings.personalFundPercent),
+                'Личные деньги',
+                result.personalPercent,
+                _distributionAmount(
+                  result.amount,
+                  result.personalPercent,
+                ),
               ),
             ],
           ),
           actions: [
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Понятно'),
+              child: const Text('Готово'),
             ),
           ],
         );
@@ -325,6 +342,38 @@ class _TodayOrdersSectionState extends State<TodayOrdersSection> {
                               '${paidAt.hour.toString().padLeft(2, '0')}:'
                               '${paidAt.minute.toString().padLeft(2, '0')}';
                       final note = payment['note']?.toString();
+                      final vehiclePercent =
+                          (payment['vehicle_percent'] as num?)?.toDouble();
+                      final personalPercent =
+                          (payment['personal_percent'] as num?)?.toDouble();
+                      final distributionLines = <String>[];
+                      if (vehiclePercent != null) {
+                        distributionLines.add(
+                          'Автобус ${vehiclePercent.toStringAsFixed(vehiclePercent == vehiclePercent.roundToDouble() ? 0 : 1)}%',
+                        );
+                      }
+                      final rawCredits =
+                          payment['credit_distribution']?.toString();
+                      if (rawCredits != null && rawCredits.isNotEmpty) {
+                        try {
+                          final decoded = jsonDecode(rawCredits);
+                          if (decoded is Map) {
+                            for (final entry in decoded.entries) {
+                              final percent = entry.value is num
+                                  ? (entry.value as num).toDouble()
+                                  : double.tryParse(entry.value.toString()) ?? 0;
+                              distributionLines.add(
+                                '${entry.key} ${percent.toStringAsFixed(percent == percent.roundToDouble() ? 0 : 1)}%',
+                              );
+                            }
+                          }
+                        } catch (_) {}
+                      }
+                      if (personalPercent != null) {
+                        distributionLines.add(
+                          'Личные ${personalPercent.toStringAsFixed(personalPercent == personalPercent.roundToDouble() ? 0 : 1)}%',
+                        );
+                      }
 
                       return ListTile(
                         contentPadding: EdgeInsets.zero,
@@ -338,6 +387,8 @@ class _TodayOrdersSectionState extends State<TodayOrdersSection> {
                         subtitle: Text(
                           [
                             if (dateText.isNotEmpty) dateText,
+                            if (distributionLines.isNotEmpty)
+                              distributionLines.join(' · '),
                             if (note != null && note.trim().isNotEmpty) note,
                           ].join('\n'),
                         ),
@@ -582,7 +633,16 @@ class _TodayOrdersSectionState extends State<TodayOrdersSection> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => _editOrder(order),
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('Редактировать заказ'),
+            ),
+          ),
+          const SizedBox(height: 8),
 
           if (order.isCompleted)
             Column(
@@ -602,55 +662,19 @@ class _TodayOrdersSectionState extends State<TodayOrdersSection> {
                 _paymentStatus(order),
                 if (order.paidAmount > 0) ...[
                   const Divider(height: 24),
-                  Text(
-                    'Распределено из фактически полученных денег',
-                    style: Theme.of(context).textTheme.labelLarge,
-                  ),
-                  const SizedBox(height: 10),
-                  _buildCompactDistributionRow(
-                    Icons.directions_bus_outlined,
-                    'На машину',
-                    _settings.workFundPercent,
-                    _distributionAmount(
-                      order.paidAmount,
-                      _settings.workFundPercent,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (_credits.isEmpty)
-                    _buildCompactDistributionRow(
-                      Icons.account_balance_outlined,
-                      'На кредит',
-                      _settings.loanFundPercent,
-                      _distributionAmount(
-                        order.paidAmount,
-                        _settings.loanFundPercent,
-                      ),
-                    )
-                  else
-                    for (final credit in _credits.where(
-                      (credit) => !credit.archived && !credit.isClosed,
-                    )) ...[
-                      _buildCompactDistributionRow(
-                        Icons.account_balance_outlined,
-                        credit.title,
-                        credit.incomePercent,
-                        _distributionAmount(
-                          order.paidAmount,
-                          credit.incomePercent,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.tune, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Каждая полученная часть заказа распределяется '
+                          'индивидуально. Подробности сохранены в истории оплат.',
+                          style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ),
-                      const SizedBox(height: 8),
                     ],
-                  if (_credits.isEmpty) const SizedBox(height: 8),
-                  _buildCompactDistributionRow(
-                    Icons.person_outline,
-                    'Себе',
-                    _settings.personalFundPercent,
-                    _distributionAmount(
-                      order.paidAmount,
-                      _settings.personalFundPercent,
-                    ),
                   ),
                 ],
                 if (order.paidAmount > 0) ...[
@@ -766,10 +790,16 @@ class _TodayOrdersSectionState extends State<TodayOrdersSection> {
 class _PaymentDialogResult {
   const _PaymentDialogResult({
     required this.amount,
+    required this.vehiclePercent,
+    required this.personalPercent,
+    required this.creditPercents,
     this.note,
   });
 
   final double amount;
+  final double vehiclePercent;
+  final double personalPercent;
+  final Map<String, double> creditPercents;
   final String? note;
 }
 
@@ -778,11 +808,15 @@ class _PaymentDialog extends StatefulWidget {
     required this.order,
     required this.firstPayment,
     required this.formatMoney,
+    required this.settings,
+    required this.credits,
   });
 
   final Order order;
   final bool firstPayment;
   final String Function(double value) formatMoney;
+  final AppSettings settings;
+  final List<Credit> credits;
 
   @override
   State<_PaymentDialog> createState() => _PaymentDialogState();
@@ -792,6 +826,48 @@ class _PaymentDialogState extends State<_PaymentDialog> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   late final TextEditingController _amountController;
   late final TextEditingController _noteController;
+  late final TextEditingController _vehicleController;
+  late final TextEditingController _personalController;
+  final Map<String, TextEditingController> _creditControllers = {};
+
+  List<Credit> get _activeCredits => widget.credits
+      .where((credit) => !credit.archived && !credit.isClosed)
+      .toList();
+
+  double _parsePercent(TextEditingController controller) {
+    return double.tryParse(
+          controller.text.trim().replaceAll(',', '.'),
+        ) ??
+        0;
+  }
+
+  double get _vehiclePercent => _parsePercent(_vehicleController);
+  double get _personalPercent => _parsePercent(_personalController);
+
+  Map<String, double> get _creditPercents => {
+        for (final entry in _creditControllers.entries)
+          entry.key: _parsePercent(entry.value),
+      };
+
+  double get _totalPercent =>
+      _vehiclePercent +
+      _personalPercent +
+      _creditPercents.values.fold<double>(
+        0,
+        (sum, value) => sum + value,
+      );
+
+  double get _currentAmount =>
+      double.tryParse(
+        _amountController.text.trim().replaceAll(',', '.'),
+      ) ??
+      0;
+
+  String _formatPercent(double value) {
+    return value == value.roundToDouble()
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(1);
+  }
 
   @override
   void initState() {
@@ -803,17 +879,58 @@ class _PaymentDialogState extends State<_PaymentDialog> {
           : '',
     );
     _noteController = TextEditingController();
+    _vehicleController = TextEditingController(
+      text: _formatPercent(widget.settings.workFundPercent),
+    );
+    _personalController = TextEditingController(
+      text: _formatPercent(widget.settings.personalFundPercent),
+    );
+
+    final activeCredits = _activeCredits;
+    if (activeCredits.isEmpty) {
+      _creditControllers['Кредит'] = TextEditingController(
+        text: _formatPercent(widget.settings.loanFundPercent),
+      );
+    } else {
+      var namedPercent = 0.0;
+      for (final credit in activeCredits) {
+        namedPercent += credit.incomePercent;
+        _creditControllers[credit.title] = TextEditingController(
+          text: _formatPercent(credit.incomePercent),
+        );
+      }
+
+      final reserve =
+          (widget.settings.loanFundPercent - namedPercent)
+              .clamp(0, double.infinity)
+              .toDouble();
+      if (reserve > 0.001) {
+        _creditControllers['Кредитный резерв'] = TextEditingController(
+          text: _formatPercent(reserve),
+        );
+      }
+    }
   }
 
   @override
   void dispose() {
     _amountController.dispose();
     _noteController.dispose();
+    _vehicleController.dispose();
+    _personalController.dispose();
+    for (final controller in _creditControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
   void _save() {
     if (_formKey.currentState?.validate() != true) {
+      return;
+    }
+
+    if ((_totalPercent - 100).abs() > 0.01) {
+      setState(() {});
       return;
     }
 
@@ -825,17 +942,78 @@ class _PaymentDialogState extends State<_PaymentDialog> {
     Navigator.of(context).pop(
       _PaymentDialogResult(
         amount: amount,
+        vehiclePercent: _vehiclePercent,
+        personalPercent: _personalPercent,
+        creditPercents: _creditPercents,
         note: note.isEmpty ? null : note,
       ),
     );
   }
 
+  Widget _percentField(
+    String label,
+    TextEditingController controller,
+    IconData icon,
+  ) {
+    final percent = _parsePercent(controller);
+    final amount = _currentAmount * percent / 100;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 3,
+          child: TextFormField(
+            controller: controller,
+            keyboardType: const TextInputType.numberWithOptions(
+              decimal: true,
+            ),
+            decoration: InputDecoration(
+              labelText: label,
+              prefixIcon: Icon(icon),
+              suffixText: '%',
+              border: const OutlineInputBorder(),
+            ),
+            onChanged: (_) => setState(() {}),
+            validator: (value) {
+              final parsed = double.tryParse(
+                (value ?? '').trim().replaceAll(',', '.'),
+              );
+              if (parsed == null || parsed < 0 || parsed > 100) {
+                return '0–100';
+              }
+              return null;
+            },
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          flex: 2,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 17),
+            child: Text(
+              widget.formatMoney(amount),
+              textAlign: TextAlign.end,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final total = _totalPercent;
+    final delta = 100 - total;
+    final validDistribution = delta.abs() <= 0.01;
+
     return AlertDialog.adaptive(
       title: Text(
         widget.firstPayment
-            ? 'Оплата за выполненный заказ'
+            ? 'Завершение заказа'
             : 'Добавить оплату',
       ),
       content: Form(
@@ -856,9 +1034,7 @@ class _PaymentDialogState extends State<_PaymentDialog> {
               Text(
                 'Осталось: '
                 '${widget.formatMoney(widget.order.remainingAmount)}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -872,6 +1048,7 @@ class _PaymentDialogState extends State<_PaymentDialog> {
                   suffixText: '₽',
                   border: OutlineInputBorder(),
                 ),
+                onChanged: (_) => setState(() {}),
                 validator: (value) {
                   final amount = double.tryParse(
                     (value ?? '').trim().replaceAll(',', '.'),
@@ -881,15 +1058,75 @@ class _PaymentDialogState extends State<_PaymentDialog> {
                     return 'Введите сумму больше нуля';
                   }
 
-                  if (amount >
-                      widget.order.remainingAmount + 0.001) {
+                  if (amount > widget.order.remainingAmount + 0.001) {
                     return 'Сумма больше остатка';
                   }
 
                   return null;
                 },
               ),
+              const SizedBox(height: 20),
+              const Text(
+                'Куда распределить эту оплату',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Проценты относятся только к этой конкретной оплате. '
+                'Общие настройки приложения не изменятся.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 14),
+              _percentField(
+                'На автобус',
+                _vehicleController,
+                Icons.directions_bus_outlined,
+              ),
               const SizedBox(height: 12),
+              for (final entry in _creditControllers.entries) ...[
+                _percentField(
+                  entry.key,
+                  entry.value,
+                  Icons.account_balance_outlined,
+                ),
+                const SizedBox(height: 12),
+              ],
+              _percentField(
+                'Личные деньги',
+                _personalController,
+                Icons.person_outline,
+              ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: validDistribution
+                      ? Theme.of(context)
+                          .colorScheme
+                          .primaryContainer
+                          .withValues(alpha: 0.45)
+                      : Theme.of(context)
+                          .colorScheme
+                          .errorContainer
+                          .withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  validDistribution
+                      ? 'Распределено 100%'
+                      : delta > 0
+                          ? 'Распределено ${_formatPercent(total)}% · '
+                              'осталось ${_formatPercent(delta)}%'
+                          : 'Распределено ${_formatPercent(total)}% · '
+                              'превышение ${_formatPercent(-delta)}%',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(height: 14),
               TextField(
                 controller: _noteController,
                 decoration: const InputDecoration(
@@ -913,11 +1150,10 @@ class _PaymentDialogState extends State<_PaymentDialog> {
           child: const Text('Отмена'),
         ),
         FilledButton(
-          onPressed: _save,
+          onPressed: validDistribution ? _save : null,
           child: const Text('Сохранить оплату'),
         ),
       ],
     );
   }
 }
-

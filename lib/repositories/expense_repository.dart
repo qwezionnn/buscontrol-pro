@@ -44,6 +44,11 @@ class ExpenseRepository {
     );
   }
 
+  /// Удаляет ошибочно добавленный расход.
+  Future<void> deleteExpense(int id) {
+    return _databaseHelper.deleteExpense(id);
+  }
+
   Future<double> getTotalForDate(
       DateTime date,
       ) async {

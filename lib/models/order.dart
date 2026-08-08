@@ -1,6 +1,7 @@
 enum OrderType {
   hourly,
   intercity,
+  fixed,
 }
 
 enum OrderStatus {
@@ -88,6 +89,8 @@ class Order {
 
       case OrderType.intercity:
         return '${_formatNumber(kilometers ?? 0)} км';
+      case OrderType.fixed:
+        return 'Фиксированная сумма';
     }
   }
 
@@ -175,7 +178,8 @@ class Order {
     switch (value) {
       case 'intercity':
         return OrderType.intercity;
-
+      case 'fixed':
+        return OrderType.fixed;
       case 'hourly':
       default:
         return OrderType.hourly;

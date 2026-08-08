@@ -4,7 +4,9 @@ import '../../models/expense.dart';
 import '../../repositories/expense_repository.dart';
 
 class AddExpenseScreen extends StatefulWidget {
-  const AddExpenseScreen({super.key});
+  const AddExpenseScreen({super.key, this.initialDate});
+
+  final DateTime? initialDate;
 
   @override
   State<AddExpenseScreen> createState() => _AddExpenseScreenState();
@@ -23,6 +25,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   TimeOfDay _selectedTime = TimeOfDay.now();
 
   bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final initialDate = widget.initialDate;
+    if (initialDate != null) {
+      _selectedDate = DateTime(initialDate.year, initialDate.month, initialDate.day);
+    }
+  }
 
   final List<String> _categories = const [
     'Мойка',

@@ -10,10 +10,18 @@ import '../../repositories/credit_repository.dart';
 enum OrderFormType {
   hourly,
   intercity,
+  fixed,
 }
 
 class AddOrderScreen extends StatefulWidget {
-  const AddOrderScreen({super.key});
+  const AddOrderScreen({
+    super.key,
+    this.initialDate,
+    this.order,
+  });
+
+  final DateTime? initialDate;
+  final Order? order;
 
   @override
   State<AddOrderScreen> createState() => _AddOrderScreenState();
@@ -59,7 +67,8 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
         0;
   }
 
-  double get _amount => _quantity * _rate;
+  double get _amount =>
+      _type == OrderFormType.fixed ? _rate : _quantity * _rate;
 
   double get _workFundAmount =>
       _amount * _settings.workFundPercent / 100;
@@ -79,6 +88,39 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
   @override
   void initState() {
     super.initState();
+    final initialDate = widget.initialDate;
+    if (initialDate != null) {
+      _selectedDate = DateTime(initialDate.year, initialDate.month, initialDate.day);
+    }
+
+    final order = widget.order;
+    if (order != null) {
+      _titleController.text = order.title;
+      _noteController.text = order.note ?? '';
+      _selectedDate = DateTime.tryParse(order.date) ?? _selectedDate;
+      final timeParts = order.time.split(':');
+      if (timeParts.length >= 2) {
+        final hour = int.tryParse(timeParts[0]);
+        final minute = int.tryParse(timeParts[1]);
+        if (hour != null && minute != null) {
+          _selectedTime = TimeOfDay(hour: hour, minute: minute);
+        }
+      }
+
+      if (order.type == OrderType.hourly) {
+        _type = OrderFormType.hourly;
+        _quantityController.text = _formatNumber(order.hours ?? 0);
+        _rateController.text = _formatNumber(order.rate);
+      } else if (order.type == OrderType.intercity) {
+        _type = OrderFormType.intercity;
+        _quantityController.text = _formatNumber(order.kilometers ?? 0);
+        _rateController.text = _formatNumber(order.rate);
+      } else {
+        _type = OrderFormType.fixed;
+        _rateController.text = _formatNumber(order.amount);
+      }
+    }
+
     _loadDefaults();
   }
 
@@ -106,7 +148,9 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
       _intercityRate = settings.intercityOrderRate;
       _reminderHours = settings.orderReminderHours;
 
-      _rateController.text = _formatNumber(_hourlyRate);
+      if (widget.order == null) {
+        _rateController.text = _formatNumber(_hourlyRate);
+      }
 
       setState(() {
         _isLoading = false;
@@ -116,7 +160,9 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
         return;
       }
 
-      _rateController.text = _formatNumber(_hourlyRate);
+      if (widget.order == null) {
+        _rateController.text = _formatNumber(_hourlyRate);
+      }
 
       setState(() {
         _isLoading = false;
@@ -171,8 +217,13 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
 
       if (_type == OrderFormType.hourly) {
         _rateController.text = _formatNumber(_hourlyRate);
-      } else {
+      } else if (_type == OrderFormType.intercity) {
         _rateController.text = _formatNumber(_intercityRate);
+      } else {
+        _rateController.clear();
+      }
+      if (_type == OrderFormType.fixed) {
+        _quantityController.clear();
       }
     });
   }
@@ -223,15 +274,13 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
         title: _titleController.text.trim(),
         date: _databaseDate(_selectedDate),
         time: _databaseTime(_selectedTime),
-        type: _type == OrderFormType.hourly
-            ? OrderType.hourly
-            : OrderType.intercity,
-        hours: _type == OrderFormType.hourly
-            ? _quantity
-            : null,
-        kilometers: _type == OrderFormType.intercity
-            ? _quantity
-            : null,
+        type: switch (_type) {
+          OrderFormType.hourly => OrderType.hourly,
+          OrderFormType.intercity => OrderType.intercity,
+          OrderFormType.fixed => OrderType.fixed,
+        },
+        hours: _type == OrderFormType.hourly ? _quantity : null,
+        kilometers: _type == OrderFormType.intercity ? _quantity : null,
         rate: _rate,
         amount: _amount,
         reminderHours: _reminderHours,
@@ -240,7 +289,25 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
             : _noteController.text.trim(),
       );
 
-      await _orderRepository.addOrder(order);
+      if (widget.order != null && _amount + 0.001 < widget.order!.paidAmount) {
+        throw StateError(
+          'Новая стоимость заказа меньше уже полученной оплаты '
+          '(${_formatMoney(widget.order!.paidAmount)}).',
+        );
+      }
+
+      if (widget.order?.id != null) {
+        await _orderRepository.updateOrder(
+          order.copyWith(
+            id: widget.order!.id,
+            status: widget.order!.status,
+            paid: widget.order!.paid,
+            paidAmount: widget.order!.paidAmount,
+          ),
+        );
+      } else {
+        await _orderRepository.addOrder(order);
+      }
 
       if (!mounted) {
         return;
@@ -302,17 +369,17 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
         ? 'Количество часов'
         : 'Расстояние';
 
-    final quantitySuffix = _type == OrderFormType.hourly
-        ? 'ч'
-        : 'км';
+    final quantitySuffix = _type == OrderFormType.hourly ? 'ч' : 'км';
 
-    final rateLabel = _type == OrderFormType.hourly
-        ? 'Цена за час'
-        : 'Цена за километр';
+    final rateLabel = switch (_type) {
+      OrderFormType.hourly => 'Цена за час',
+      OrderFormType.intercity => 'Цена за километр',
+      OrderFormType.fixed => 'Фиксированная сумма заказа',
+    };
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Новый заказ'),
+        title: Text(widget.order == null ? 'Новый заказ' : 'Редактировать заказ'),
       ),
       body: SafeArea(
         child: _isLoading
@@ -351,12 +418,17 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                   ButtonSegment(
                     value: OrderFormType.hourly,
                     icon: Icon(Icons.schedule),
-                    label: Text('Почасовой'),
+                    label: Text('Часы'),
                   ),
                   ButtonSegment(
                     value: OrderFormType.intercity,
                     icon: Icon(Icons.route),
                     label: Text('Межгород'),
+                  ),
+                  ButtonSegment(
+                    value: OrderFormType.fixed,
+                    icon: Icon(Icons.payments_outlined),
+                    label: Text('Фикс.'),
                   ),
                 ],
                 selected: {_type},
@@ -397,34 +469,34 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
 
               const SizedBox(height: 16),
 
-              TextFormField(
-                controller: _quantityController,
-                keyboardType:
-                const TextInputType.numberWithOptions(
-                  decimal: true,
+              if (_type != OrderFormType.fixed) ...[
+                TextFormField(
+                  controller: _quantityController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: quantityLabel,
+                    suffixText: quantitySuffix,
+                    border: const OutlineInputBorder(),
+                  ),
+                  onChanged: (_) {
+                    setState(() {});
+                  },
+                  validator: (value) {
+                    final number = double.tryParse(
+                      (value ?? '').replaceAll(',', '.'),
+                    );
+
+                    if (number == null || number <= 0) {
+                      return 'Введите значение больше нуля';
+                    }
+
+                    return null;
+                  },
                 ),
-                decoration: InputDecoration(
-                  labelText: quantityLabel,
-                  suffixText: quantitySuffix,
-                  border: const OutlineInputBorder(),
-                ),
-                onChanged: (_) {
-                  setState(() {});
-                },
-                validator: (value) {
-                  final number = double.tryParse(
-                    (value ?? '').replaceAll(',', '.'),
-                  );
-
-                  if (number == null || number <= 0) {
-                    return 'Введите значение больше нуля';
-                  }
-
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
+              ],
 
               TextFormField(
                 controller: _rateController,
@@ -446,7 +518,9 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                   );
 
                   if (number == null || number <= 0) {
-                    return 'Введите тариф больше нуля';
+                    return _type == OrderFormType.fixed
+                        ? 'Введите сумму больше нуля'
+                        : 'Введите тариф больше нуля';
                   }
 
                   return null;
@@ -587,7 +661,9 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                 label: Text(
                   _isSaving
                       ? 'Сохраняем...'
-                      : 'Сохранить заказ',
+                      : (widget.order == null
+                          ? 'Сохранить заказ'
+                          : 'Сохранить изменения'),
                 ),
               ),
             ],

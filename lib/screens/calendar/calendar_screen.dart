@@ -1,7 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../../models/order.dart';
+import '../../models/trip.dart';
 import '../../repositories/report_repository.dart';
+import '../../repositories/order_repository.dart';
+import '../../repositories/trip_repository.dart';
+import '../../repositories/fuel_repository.dart';
+import '../../repositories/expense_repository.dart';
 import '../../widgets/bus_card.dart';
+import '../expenses/add_expense_screen.dart';
+import '../fuel/add_fuel_screen.dart';
+import '../orders/add_order_screen.dart';
+import '../orders/order_payment_screen.dart';
+import '../trips/add_extra_trip_screen.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -76,6 +87,407 @@ class _CalendarScreenState extends State<CalendarScreen> {
         now.day == date.day;
   }
 
+  Future<void> _openForDate(
+    DateTime date,
+    Widget screen,
+  ) async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => screen),
+    );
+    if (saved == true) {
+      await _load();
+    }
+  }
+
+  Future<void> _showAddMenu(DateTime date) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Добавить на ${date.day.toString().padLeft(2, '0')}.'
+                '${date.month.toString().padLeft(2, '0')}.${date.year}',
+                style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.wb_sunny_outlined),
+                title: const Text('Утренний рейс'),
+                subtitle: const Text('Добавить обычный утренний рейс'),
+                onTap: () => Navigator.pop(sheetContext, 'morning_trip'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.nightlight_outlined),
+                title: const Text('Вечерний рейс'),
+                subtitle: const Text('Добавить обычный вечерний рейс'),
+                onTap: () => Navigator.pop(sheetContext, 'evening_trip'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.add_road),
+                title: const Text('Дополнительный рейс'),
+                onTap: () => Navigator.pop(sheetContext, 'trip'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.local_taxi),
+                title: const Text('Заказ'),
+                onTap: () => Navigator.pop(sheetContext, 'order'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.local_gas_station),
+                title: const Text('Заправка'),
+                onTap: () => Navigator.pop(sheetContext, 'fuel'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.receipt_long),
+                title: const Text('Расход'),
+                onTap: () => Navigator.pop(sheetContext, 'expense'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (!mounted || action == null) return;
+
+    switch (action) {
+      case 'morning_trip':
+        await TripRepository.instance.addStandardTrip(
+          date: date,
+          type: TripType.morning,
+        );
+        await _load();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Утренний рейс добавлен. Нажмите на него, чтобы отметить выполненным.'),
+            ),
+          );
+        }
+        break;
+      case 'evening_trip':
+        await TripRepository.instance.addStandardTrip(
+          date: date,
+          type: TripType.evening,
+        );
+        await _load();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Вечерний рейс добавлен. Нажмите на него, чтобы отметить выполненным.'),
+            ),
+          );
+        }
+        break;
+      case 'trip':
+        await _openForDate(
+          date,
+          AddExtraTripScreen(initialDate: date),
+        );
+        break;
+      case 'order':
+        await _openForDate(
+          date,
+          AddOrderScreen(initialDate: date),
+        );
+        break;
+      case 'fuel':
+        await _openForDate(
+          date,
+          AddFuelScreen(initialDate: date),
+        );
+        break;
+      case 'expense':
+        await _openForDate(
+          date,
+          AddExpenseScreen(initialDate: date),
+        );
+        break;
+    }
+  }
+
+  Future<void> _editOrderFromCalendar(
+    Map<String, Object?> row,
+  ) async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AddOrderScreen(
+          order: Order.fromMap(row),
+        ),
+      ),
+    );
+    if (saved == true) {
+      await _load();
+    }
+  }
+
+  Future<void> _showOrderActions(
+    Map<String, Object?> row,
+  ) async {
+    var order = Order.fromMap(row);
+
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Редактировать'),
+              onTap: () => Navigator.pop(sheetContext, 'edit'),
+            ),
+            if (order.isPlanned)
+              ListTile(
+                leading: const Icon(Icons.check_circle_outline),
+                title: const Text('Отметить выполненным'),
+                onTap: () => Navigator.pop(sheetContext, 'complete'),
+              ),
+            if (order.isCompleted && !order.isFullyPaid)
+              ListTile(
+                leading: const Icon(Icons.add_card),
+                title: const Text('Добавить оплату'),
+                onTap: () => Navigator.pop(sheetContext, 'payment'),
+              ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text(
+                'Удалить заказ',
+                style: TextStyle(color: Colors.red),
+              ),
+              onTap: () => Navigator.pop(sheetContext, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted || action == null) return;
+
+    if (action == 'edit') {
+      await _editOrderFromCalendar(row);
+      return;
+    }
+
+    if (action == 'delete' && order.id != null) {
+      final confirmed = await _confirmDelete(
+        title: 'Удалить заказ?',
+        message:
+            'Заказ «${order.title}» и все связанные с ним оплаты будут удалены.',
+      );
+      if (confirmed) {
+        await OrderRepository.instance.deleteOrder(order.id!);
+        await _load();
+      }
+      return;
+    }
+
+    if (action == 'complete' && order.id != null) {
+      await OrderRepository.instance.markCompleted(order.id!);
+      order = order.copyWith(status: OrderStatus.completed);
+      if (!mounted) return;
+
+      await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => OrderPaymentScreen(order: order),
+        ),
+      );
+      if (mounted) {
+        await _load();
+      }
+      return;
+    }
+
+    if (action == 'payment') {
+      final paid = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => OrderPaymentScreen(order: order),
+        ),
+      );
+      if (paid == true) {
+        await _load();
+      }
+    }
+  }
+
+  Future<bool> _confirmDelete({
+    required String title,
+    required String message,
+  }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  Future<void> _showTripActions(Map<String, Object?> row) async {
+    final id = (row['id'] as num?)?.toInt();
+    if (id == null) return;
+
+    final type = row['type']?.toString() ?? '';
+    final completed = row['completed'] == 1;
+    final isExtra = type == 'extra';
+
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(
+                completed
+                    ? Icons.radio_button_unchecked
+                    : Icons.check_circle_outline,
+              ),
+              title: Text(
+                completed
+                    ? 'Отметить не выполненным'
+                    : 'Отметить выполненным',
+              ),
+              onTap: () => Navigator.pop(sheetContext, 'toggle'),
+            ),
+            if (isExtra) ...[
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text(
+                  'Удалить рейс',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: () => Navigator.pop(sheetContext, 'delete'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted || action == null) return;
+
+    if (action == 'toggle') {
+      await TripRepository.instance.setCompleted(
+        tripId: id,
+        completed: !completed,
+      );
+      await _load();
+      return;
+    }
+
+    if (action == 'delete' && isExtra) {
+      final confirmed = await _confirmDelete(
+        title: 'Удалить рейс?',
+        message:
+            'Дополнительный рейс «${row['title'] ?? 'Рейс'}» будет удалён.',
+      );
+      if (!confirmed) return;
+      await TripRepository.instance.deleteExtraTrip(id);
+      await _load();
+    }
+  }
+
+  Future<void> _showFuelActions(Map<String, Object?> row) async {
+    final id = (row['id'] as num?)?.toInt();
+    if (id == null) return;
+
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text(
+                'Удалить заправку',
+                style: TextStyle(color: Colors.red),
+              ),
+              onTap: () => Navigator.pop(sheetContext, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted || action != 'delete') return;
+
+    final confirmed = await _confirmDelete(
+      title: 'Удалить заправку?',
+      message:
+          'Заправка на ${_number(row['liters'])} л (${_money(row['total'])}) будет удалена.',
+    );
+    if (!confirmed) return;
+
+    await FuelRepository.instance.deleteFuelLog(id);
+    await _load();
+  }
+
+  Future<void> _showExpenseActions(Map<String, Object?> row) async {
+    final id = (row['id'] as num?)?.toInt();
+    if (id == null) return;
+
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text(
+                'Удалить расход',
+                style: TextStyle(color: Colors.red),
+              ),
+              onTap: () => Navigator.pop(sheetContext, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted || action != 'delete') return;
+
+    final confirmed = await _confirmDelete(
+      title: 'Удалить расход?',
+      message:
+          'Расход «${row['category'] ?? 'Расход'}» на сумму ${_money(row['amount'])} будет удалён.',
+    );
+    if (!confirmed) return;
+
+    await ExpenseRepository.instance.deleteExpense(id);
+    await _load();
+  }
+
   Future<void> _showDay(DateTime date) async {
     final data = await _repository.getDayEvents(date);
     if (!mounted) return;
@@ -102,6 +514,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                   ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Future<void>.delayed(
+                          const Duration(milliseconds: 120),
+                          () => _showAddMenu(date),
+                        );
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('Добавить запись'),
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   if (!data.hasTrips &&
                       !data.hasOrders &&
@@ -116,24 +543,56 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       Icons.directions_bus,
                       trip['title']?.toString() ?? 'Рейс',
                       '${trip['completed'] == 1 ? 'Выполнен' : 'Не выполнен'} · ${_money(trip['price'])}',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Future<void>.delayed(
+                          const Duration(milliseconds: 120),
+                          () => _showTripActions(trip),
+                        );
+                      },
+                      trailing: const Icon(Icons.more_horiz),
                     ),
                   for (final order in data.orders)
                     _eventTile(
                       Icons.local_taxi,
                       order['title']?.toString() ?? 'Заказ',
                       '${order['time'] ?? ''} · ${_orderStatus(order['status'])} · ${_money(order['amount'])}',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Future<void>.delayed(
+                          const Duration(milliseconds: 120),
+                          () => _showOrderActions(order),
+                        );
+                      },
+                      trailing: const Icon(Icons.more_horiz),
                     ),
                   for (final fuel in data.fuelLogs)
                     _eventTile(
                       Icons.local_gas_station,
                       'Заправка',
                       '${_number(fuel['liters'])} л · ${_money(fuel['total'])}',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Future<void>.delayed(
+                          const Duration(milliseconds: 120),
+                          () => _showFuelActions(fuel),
+                        );
+                      },
+                      trailing: const Icon(Icons.more_horiz),
                     ),
                   for (final expense in data.expenses)
                     _eventTile(
                       Icons.receipt_long,
                       expense['category']?.toString() ?? 'Расход',
                       _money(expense['amount']),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Future<void>.delayed(
+                          const Duration(milliseconds: 120),
+                          () => _showExpenseActions(expense),
+                        );
+                      },
+                      trailing: const Icon(Icons.more_horiz),
                     ),
                   if (data.distance != null)
                     _eventTile(
@@ -150,7 +609,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  Widget _eventTile(IconData icon, String title, String subtitle) {
+  Widget _eventTile(
+    IconData icon,
+    String title,
+    String subtitle, {
+    VoidCallback? onTap,
+    Widget? trailing,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: BusCard(
@@ -160,6 +625,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
           leading: Icon(icon),
           title: Text(title),
           subtitle: Text(subtitle),
+          trailing: trailing,
+          onTap: onTap,
         ),
       ),
     );
@@ -197,6 +664,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: () => _showDay(date),
+      onLongPress: () => _showAddMenu(date),
       child: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(

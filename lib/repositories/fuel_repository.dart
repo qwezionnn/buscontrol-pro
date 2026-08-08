@@ -47,6 +47,11 @@ class FuelRepository {
     );
   }
 
+  /// Удаляет ошибочно добавленную заправку.
+  Future<void> deleteFuelLog(int id) {
+    return _databaseHelper.deleteFuelLog(id);
+  }
+
   /// Общая сумма заправок за выбранный день.
   Future<double> getTotalCostForDate(
       DateTime date,

@@ -9,6 +9,7 @@ import '../../widgets/bus_card.dart';
 import '../../widgets/simple_bar_chart.dart';
 import 'finance_detail_screen.dart';
 import 'credits_screen.dart';
+import 'distribution_calculator_screen.dart';
 
 class FinanceScreen extends StatefulWidget {
   const FinanceScreen({super.key});
@@ -282,6 +283,38 @@ class _FinanceScreenState extends State<FinanceScreen> {
                           ),
                         ),
                         Text('Несколько кредитов и отдельный процент для каждого'),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            BusCard(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const DistributionCalculatorScreen(),
+                ),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.calculate_outlined, size: 34),
+                  SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Калькулятор распределения',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          'Введите сумму и сами настройте проценты',
+                        ),
                       ],
                     ),
                   ),

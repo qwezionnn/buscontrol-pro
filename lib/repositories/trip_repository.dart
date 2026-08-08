@@ -118,6 +118,43 @@ class TripRepository {
     return trips;
   }
 
+  /// Добавляет конкретный обычный рейс на выбранную дату.
+  ///
+  /// Если такой рейс уже существует, новый дубль не создаётся.
+  /// Рейс создаётся как невыполненный — его можно отметить выполненным
+  /// из календаря в любой момент.
+  Future<void> addStandardTrip({
+    required DateTime date,
+    required TripType type,
+  }) async {
+    if (type == TripType.extra) {
+      throw ArgumentError('Для дополнительного рейса используйте addExtraTrip.');
+    }
+
+    final databaseDate = _databaseDate(date);
+    final rows = await _databaseHelper.getTripsByDate(databaseDate);
+    final typeName = type.name;
+
+    final alreadyExists = rows.any(
+      (row) => row['type']?.toString() == typeName,
+    );
+    if (alreadyExists) return;
+
+    final price = await _getStandardTripPrice();
+    final title = type == TripType.morning
+        ? 'Утренний рейс'
+        : 'Вечерний рейс';
+
+    await _databaseHelper.addTrip(
+      date: databaseDate,
+      title: title,
+      type: typeName,
+      price: price,
+      completed: false,
+      ignoreConflict: true,
+    );
+  }
+
   Future<int> addExtraTrip({
     required DateTime date,
     String? time,
@@ -141,6 +178,15 @@ class TripRepository {
       tripId,
       completed,
     );
+  }
+
+  /// Удаляет дополнительный рейс.
+  ///
+  /// Утренний и вечерний рейсы являются системными и при необходимости
+  /// автоматически создаются снова, поэтому из календаря удаляем только
+  /// дополнительные рейсы.
+  Future<void> deleteExtraTrip(int tripId) {
+    return _databaseHelper.deleteTrip(tripId);
   }
 
   int _sortOrder(TripType type) {

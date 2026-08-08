@@ -5,7 +5,9 @@ import '../../repositories/fuel_repository.dart';
 import '../../repositories/settings_repository.dart';
 
 class AddFuelScreen extends StatefulWidget {
-  const AddFuelScreen({super.key});
+  const AddFuelScreen({super.key, this.initialDate});
+
+  final DateTime? initialDate;
 
   @override
   State<AddFuelScreen> createState() => _AddFuelScreenState();
@@ -48,6 +50,10 @@ class _AddFuelScreenState extends State<AddFuelScreen> {
   @override
   void initState() {
     super.initState();
+    final initialDate = widget.initialDate;
+    if (initialDate != null) {
+      _selectedDate = DateTime(initialDate.year, initialDate.month, initialDate.day);
+    }
     _loadDefaults();
   }
 
