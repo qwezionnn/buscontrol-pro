@@ -58,6 +58,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Future<void> _load() async {
     setState(() => _isLoading = true);
     try {
+      // Убираем автоматически созданные невыполненные обычные рейсы
+      // с суббот и воскресений текущего месяца.
+      final daysInMonth = DateTime(_month.year, _month.month + 1, 0).day;
+      for (var day = 1; day <= daysInMonth; day++) {
+        final date = DateTime(_month.year, _month.month, day);
+        if (date.weekday == DateTime.saturday ||
+            date.weekday == DateTime.sunday) {
+          await TripRepository.instance.ensureStandardTrips(date);
+        }
+      }
+
       final events = await _repository.getMonthEvents(_month);
       if (!mounted) return;
       setState(() {
@@ -117,18 +128,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     ),
               ),
               const SizedBox(height: 12),
-              ListTile(
-                leading: const Icon(Icons.wb_sunny_outlined),
-                title: const Text('Утренний рейс'),
-                subtitle: const Text('Добавить обычный утренний рейс'),
-                onTap: () => Navigator.pop(sheetContext, 'morning_trip'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.nightlight_outlined),
-                title: const Text('Вечерний рейс'),
-                subtitle: const Text('Добавить обычный вечерний рейс'),
-                onTap: () => Navigator.pop(sheetContext, 'evening_trip'),
-              ),
+              if (date.weekday != DateTime.saturday &&
+                  date.weekday != DateTime.sunday) ...[
+                ListTile(
+                  leading: const Icon(Icons.wb_sunny_outlined),
+                  title: const Text('Утренний рейс'),
+                  subtitle: const Text('Добавить обычный утренний рейс'),
+                  onTap: () => Navigator.pop(sheetContext, 'morning_trip'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.nightlight_outlined),
+                  title: const Text('Вечерний рейс'),
+                  subtitle: const Text('Добавить обычный вечерний рейс'),
+                  onTap: () => Navigator.pop(sheetContext, 'evening_trip'),
+                ),
+              ],
               ListTile(
                 leading: const Icon(Icons.add_road),
                 title: const Text('Дополнительный рейс'),

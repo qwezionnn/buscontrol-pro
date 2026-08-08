@@ -30,6 +30,27 @@ class TripRepository {
       databaseDate,
     );
 
+    // По выходным обычных утреннего/вечернего рейсов нет.
+    // Удаляем только автоматически созданные НЕвыполненные системные рейсы,
+    // чтобы не потерять случайно уже отмеченную историческую запись.
+    if (date.weekday == DateTime.saturday ||
+        date.weekday == DateTime.sunday) {
+      for (final row in rows) {
+        final type = row['type']?.toString();
+        final completed = row['completed'] == 1;
+        final isStandard = type == TripType.morning.name ||
+            type == TripType.evening.name;
+
+        if (isStandard && !completed) {
+          final id = row['id'];
+          if (id is int) {
+            await _databaseHelper.deleteTrip(id);
+          }
+        }
+      }
+      return;
+    }
+
     final price = await _getStandardTripPrice();
 
     Map<String, Object?>? morningRow;
@@ -129,6 +150,13 @@ class TripRepository {
   }) async {
     if (type == TripType.extra) {
       throw ArgumentError('Для дополнительного рейса используйте addExtraTrip.');
+    }
+
+    if (date.weekday == DateTime.saturday ||
+        date.weekday == DateTime.sunday) {
+      throw StateError(
+        'По выходным утренний и вечерний рейсы не добавляются.',
+      );
     }
 
     final databaseDate = _databaseDate(date);
