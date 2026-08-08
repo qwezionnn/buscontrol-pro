@@ -1,0 +1,15 @@
+BusControl PRO 4.1 — домашняя заправка + АЗС (ИСПРАВЛЕНО)
+
+Исправлено:
+- возвращён метод FuelRepository.deleteFuelLog(int id);
+- удаление заправки из календаря снова компилируется и работает;
+- новая логика «АЗС / Дома» сохранена.
+
+Установка:
+1. Распаковать архив поверх C:\Projects\bus_control_pro_final с заменой файлов.
+2. Выполнить:
+   flutter clean
+   flutter pub get
+   flutter analyze
+3. Если нет ERROR:
+   flutter run -d web-server --web-port 5050

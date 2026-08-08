@@ -4,6 +4,7 @@ import '../../../models/fuel.dart';
 import '../../../repositories/fuel_repository.dart';
 import '../../../widgets/bus_card.dart';
 import '../../fuel/add_fuel_screen.dart';
+import '../../fuel/home_fuel_settlement_screen.dart';
 
 class TodayFuelSection extends StatefulWidget {
   const TodayFuelSection({super.key});
@@ -87,6 +88,22 @@ class _TodayFuelSectionState extends State<TodayFuelSection> {
     );
   }
 
+  Future<void> _openHomeFuelSettlement() async {
+    final wasSaved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (context) => const HomeFuelSettlementScreen(),
+      ),
+    );
+
+    if (wasSaved == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Домашнее топливо списано с кошелька автобуса'),
+        ),
+      );
+    }
+  }
+
   Widget _buildEmptyCard() {
     return BusCard(
       onTap: _openAddFuelScreen,
@@ -160,8 +177,8 @@ class _TodayFuelSectionState extends State<TodayFuelSection> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Заправка',
+                    Text(
+                      fuelLog.isHome ? 'Заправка дома' : 'Заправка на АЗС',
                       style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
@@ -239,22 +256,30 @@ class _TodayFuelSectionState extends State<TodayFuelSection> {
       );
     }
 
-    if (_fuelLogs.isEmpty) {
-      return _buildEmptyCard();
-    }
-
     return Column(
       children: [
-        for (final fuelLog in _fuelLogs) ...[
-          _buildFuelLogCard(fuelLog),
-          const SizedBox(height: 12),
+        if (_fuelLogs.isEmpty)
+          _buildEmptyCard()
+        else ...[
+          for (final fuelLog in _fuelLogs) ...[
+            _buildFuelLogCard(fuelLog),
+            const SizedBox(height: 12),
+          ],
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _openAddFuelScreen,
+              icon: const Icon(Icons.add),
+              label: const Text('Ещё заправка'),
+            ),
+          ),
         ],
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
-            onPressed: _openAddFuelScreen,
-            icon: const Icon(Icons.add),
-            label: const Text('Ещё заправка'),
+            onPressed: _openHomeFuelSettlement,
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            label: const Text('Расчёт домашнего топлива'),
           ),
         ),
       ],

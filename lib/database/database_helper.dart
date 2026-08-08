@@ -41,7 +41,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 9,
+      version: 10,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -69,6 +69,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 9) {
       await _upgradeToVersion9(db);
+    }
+    if (oldVersion < 10) {
+      await _upgradeToVersion10(db);
     }
     await _createTables(db);
     await _insertDefaultSettings(db);
@@ -143,6 +146,7 @@ class DatabaseHelper {
         liters REAL NOT NULL,
         price_per_liter REAL NOT NULL,
         total REAL NOT NULL,
+        source TEXT NOT NULL DEFAULT 'station',
         mileage INTEGER,
         note TEXT
       )
@@ -453,6 +457,20 @@ class DatabaseHelper {
       );
     }
   }
+
+  Future<void> _upgradeToVersion10(Database db) async {
+    final columns = await db.rawQuery("PRAGMA table_info(fuel_logs)");
+    final hasSource = columns.any(
+      (row) => row['name']?.toString() == 'source',
+    );
+    if (!hasSource) {
+      await db.execute(
+        "ALTER TABLE fuel_logs "
+        "ADD COLUMN source TEXT NOT NULL DEFAULT 'station'",
+      );
+    }
+  }
+
 
   Future<int> getActiveVehicleId() async {
     final value = await getSetting('active_vehicle_id');
@@ -1149,18 +1167,25 @@ class DatabaseHelper {
     String? time,
     required double liters,
     required double pricePerLiter,
+    String source = 'station',
     int? mileage,
     String? note,
   }) async {
     final db = await database;
     final vehicleId = await getActiveVehicleId();
+    final normalizedSource = source == 'home' ? 'home' : 'station';
+    final total = normalizedSource == 'home'
+        ? 0.0
+        : liters * pricePerLiter;
     return db.insert('fuel_logs', {
       'vehicle_id': vehicleId,
       'date': date,
       'time': time,
       'liters': liters,
-      'price_per_liter': pricePerLiter,
-      'total': liters * pricePerLiter,
+      'price_per_liter':
+          normalizedSource == 'home' ? 0.0 : pricePerLiter,
+      'total': total,
+      'source': normalizedSource,
       'mileage': mileage,
       'note': note,
     });

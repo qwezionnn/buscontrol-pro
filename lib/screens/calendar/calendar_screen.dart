@@ -583,8 +583,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   for (final fuel in data.fuelLogs)
                     _eventTile(
                       Icons.local_gas_station,
-                      'Заправка',
-                      '${_number(fuel['liters'])} л · ${_money(fuel['total'])}',
+                      fuel['source']?.toString() == 'home'
+                          ? 'Заправка дома'
+                          : 'Заправка на АЗС',
+                      fuel['source']?.toString() == 'home'
+                          ? '${_number(fuel['liters'])} л · без списания'
+                          : '${_number(fuel['liters'])} л · ${_money(fuel['total'])}',
                       onTap: () {
                         Navigator.pop(context);
                         Future<void>.delayed(

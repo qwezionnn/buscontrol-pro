@@ -182,14 +182,23 @@ class FinancialAssistantRepository {
       applyDefaultDistribution(amount);
     }
 
+    final homeFuelSettlements = expenses
+        .where((row) => row['category']?.toString() == 'Домашнее топливо')
+        .fold<double>(
+          0,
+          (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
+        );
     final fuelCost = fuel.fold<double>(
-      0,
-      (sum, row) => sum + ((row['total'] as num?)?.toDouble() ?? 0),
-    );
-    final otherExpenses = expenses.fold<double>(
-      0,
-      (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
-    );
+          0,
+          (sum, row) => sum + ((row['total'] as num?)?.toDouble() ?? 0),
+        ) +
+        homeFuelSettlements;
+    final otherExpenses = expenses
+        .where((row) => row['category']?.toString() != 'Домашнее топливо')
+        .fold<double>(
+          0,
+          (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
+        );
 
     final allocatedCredit = creditAllocations.values.fold<double>(
       0,

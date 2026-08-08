@@ -6,6 +6,7 @@ class FuelLog {
     required this.liters,
     required this.pricePerLiter,
     required this.total,
+    this.source = 'station',
     this.mileage,
     this.note,
   });
@@ -21,16 +22,22 @@ class FuelLog {
   /// Количество заправленных литров.
   final double liters;
 
-  /// Цена одного литра.
+  /// Цена одного литра. Для домашней заправки всегда 0.
   final double pricePerLiter;
 
-  /// Общая стоимость заправки.
+  /// Общая стоимость заправки. Для домашней заправки до расчёта всегда 0.
   final double total;
+
+  /// station — АЗС, home — домашняя заправка.
+  final String source;
 
   /// Пробег в момент заправки.
   final int? mileage;
 
   final String? note;
+
+  bool get isHome => source == 'home';
+  bool get isStation => !isHome;
 
   FuelLog copyWith({
     int? id,
@@ -39,6 +46,7 @@ class FuelLog {
     double? liters,
     double? pricePerLiter,
     double? total,
+    String? source,
     int? mileage,
     String? note,
   }) {
@@ -49,6 +57,7 @@ class FuelLog {
       liters: liters ?? this.liters,
       pricePerLiter: pricePerLiter ?? this.pricePerLiter,
       total: total ?? this.total,
+      source: source ?? this.source,
       mileage: mileage ?? this.mileage,
       note: note ?? this.note,
     );
@@ -62,6 +71,7 @@ class FuelLog {
       'liters': liters,
       'price_per_liter': pricePerLiter,
       'total': total,
+      'source': source,
       'mileage': mileage,
       'note': note,
     };
@@ -74,30 +84,30 @@ class FuelLog {
       time: map['time']?.toString(),
       liters: (map['liters'] as num?)?.toDouble() ?? 0,
       pricePerLiter:
-      (map['price_per_liter'] as num?)?.toDouble() ?? 0,
+          (map['price_per_liter'] as num?)?.toDouble() ?? 0,
       total: (map['total'] as num?)?.toDouble() ?? 0,
+      source: map['source']?.toString() ?? 'station',
       mileage: (map['mileage'] as num?)?.toInt(),
       note: map['note']?.toString(),
     );
   }
 
-  String get litersText {
-    return '${_formatNumber(liters)} л';
-  }
+  String get litersText => '${_formatNumber(liters)} л';
 
   String get priceText {
+    if (isHome) return 'Дом';
     return '${pricePerLiter.toStringAsFixed(2)} ₽/л';
   }
 
   String get totalText {
+    if (isHome) return 'Без списания';
     return '${total.toStringAsFixed(0)} ₽';
   }
 
-  String get mileageText {
-    if (mileage == null) {
-      return 'Пробег не указан';
-    }
+  String get sourceText => isHome ? 'Заправка дома' : 'АЗС';
 
+  String get mileageText {
+    if (mileage == null) return 'Пробег не указан';
     return '$mileage км';
   }
 
@@ -105,7 +115,6 @@ class FuelLog {
     if (value == value.roundToDouble()) {
       return value.toStringAsFixed(0);
     }
-
     return value.toStringAsFixed(1);
   }
 }

@@ -99,14 +99,23 @@ class ReportRepository {
       0,
       (sum, row) => sum + ((row['liters'] as num?)?.toDouble() ?? 0),
     );
+    final homeFuelSettlements = expenses
+        .where((row) => row['category']?.toString() == 'Домашнее топливо')
+        .fold<double>(
+          0,
+          (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
+        );
     final fuelCost = fuel.fold<double>(
-      0,
-      (sum, row) => sum + ((row['total'] as num?)?.toDouble() ?? 0),
-    );
-    final expenseCost = expenses.fold<double>(
-      0,
-      (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
-    );
+          0,
+          (sum, row) => sum + ((row['total'] as num?)?.toDouble() ?? 0),
+        ) +
+        homeFuelSettlements;
+    final expenseCost = expenses
+        .where((row) => row['category']?.toString() != 'Домашнее топливо')
+        .fold<double>(
+          0,
+          (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
+        );
     final distance = logs.fold<int>(
       0,
       (sum, row) {
