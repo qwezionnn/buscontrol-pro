@@ -11,7 +11,7 @@ import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
 import '../platform/file_download.dart';
 
-class BackupService {
+class BackupService extends ChangeNotifier {
   BackupService._();
 
   static final BackupService instance = BackupService._();
@@ -186,6 +186,7 @@ class BackupService {
       }
     });
 
+    notifyListeners();
     return true;
   }
 

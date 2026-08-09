@@ -1502,7 +1502,7 @@ class DatabaseHelper {
 
     return <String, dynamic>{
       'format': 1,
-      'database_version': 9,
+      'database_version': 10,
       'exported_at': DateTime.now().toUtc().toIso8601String(),
       'tables': tables,
     };

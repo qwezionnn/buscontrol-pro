@@ -6,6 +6,7 @@ import '../../core/services/cloud_sync_service.dart';
 import '../../models/vehicle.dart';
 import '../../repositories/settings_repository.dart';
 import '../../repositories/vehicle_repository.dart';
+import '../../services/backup_service.dart';
 import '../bus/bus_screen.dart';
 import '../calendar/calendar_screen.dart';
 import '../finance/finance_screen.dart';
@@ -26,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final VehicleRepository _vehicleRepository =
       VehicleRepository.instance;
   final CloudSyncService _cloudSyncService = CloudSyncService.instance;
+  final BackupService _backupService = BackupService.instance;
 
   int _currentIndex = 0;
   int _refreshVersion = 0;
@@ -38,6 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _settingsRepository.addListener(_handleChanged);
     _vehicleRepository.addListener(_handleVehicleChanged);
     _cloudSyncService.addListener(_handleCloudChanged);
+    _backupService.addListener(_handleBackupRestored);
     _loadVehicles();
   }
 
@@ -46,9 +49,16 @@ class _HomeScreenState extends State<HomeScreen> {
     _settingsRepository.removeListener(_handleChanged);
     _vehicleRepository.removeListener(_handleVehicleChanged);
     _cloudSyncService.removeListener(_handleCloudChanged);
+    _backupService.removeListener(_handleBackupRestored);
     super.dispose();
   }
 
+
+  void _handleBackupRestored() {
+    if (!mounted) return;
+    _loadVehicles();
+    setState(() => _refreshVersion++);
+  }
 
   void _handleCloudChanged() {
     if (!mounted) return;

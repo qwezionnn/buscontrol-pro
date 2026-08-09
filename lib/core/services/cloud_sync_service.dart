@@ -78,10 +78,12 @@ class CloudSyncService extends ChangeNotifier {
         await _saveSyncMetadata(localHash);
       } else {
         final cloudHash = cloudRow['payload_hash']?.toString() ?? '';
-        final localChanged = lastHash == null || localHash != lastHash;
-        final cloudChanged = lastHash == null || cloudHash != lastHash;
 
-        if (!localChanged && cloudChanged) {
+        // Первое подключение нового устройства: если в облаке уже есть снимок,
+        // облако является источником истины. Раньше lastHash == null считался
+        // "локальным изменением", из-за чего пустая/новая база второго телефона
+        // могла перезаписать существующую облачную копию.
+        if (lastHash == null) {
           final payload = cloudRow['payload'];
           if (payload is Map) {
             await _database.importCloudSnapshot(
@@ -90,19 +92,33 @@ class CloudSyncService extends ChangeNotifier {
             await _saveSyncMetadata(cloudHash);
             _revision++;
           }
-        } else if (localChanged) {
+        } else {
+          final localChanged = localHash != lastHash;
+          final cloudChanged = cloudHash != lastHash;
+
+          if (!localChanged && cloudChanged) {
+            final payload = cloudRow['payload'];
+            if (payload is Map) {
+              await _database.importCloudSnapshot(
+                Map<String, dynamic>.from(payload),
+              );
+              await _saveSyncMetadata(cloudHash);
+              _revision++;
+            }
+          } else if (localChanged) {
           // При конфликте офлайн-изменения текущего устройства имеют приоритет.
           await _upload(
             userId: user.id,
             snapshot: localSnapshot,
             payloadHash: localHash,
           );
-          await _saveSyncMetadata(localHash);
-        } else {
-          await _database.setSetting(
-            'cloud_sync_last_at',
-            DateTime.now().toUtc().toIso8601String(),
-          );
+            await _saveSyncMetadata(localHash);
+          } else {
+            await _database.setSetting(
+              'cloud_sync_last_at',
+              DateTime.now().toUtc().toIso8601String(),
+            );
+          }
         }
       }
 
