@@ -10,6 +10,7 @@ import '../../../repositories/settings_repository.dart';
 import '../../../repositories/credit_repository.dart';
 import '../../../widgets/bus_card.dart';
 import '../../orders/add_order_screen.dart';
+import '../../orders/order_payment_screen.dart';
 
 class TodayOrdersSection extends StatefulWidget {
   const TodayOrdersSection({super.key});
@@ -163,63 +164,18 @@ class _TodayOrdersSectionState extends State<TodayOrdersSection> {
     Order order, {
     bool firstPayment = false,
   }) async {
-    final orderId = order.id;
-    if (orderId == null || order.remainingAmount <= 0.001) {
+    if (order.id == null || order.remainingAmount <= 0.001) {
       return;
     }
 
-    final result = await showAdaptiveDialog<_PaymentDialogResult>(
-      context: context,
-      builder: (dialogContext) {
-        return _PaymentDialog(
-          order: order,
-          firstPayment: firstPayment,
-          formatMoney: _formatMoney,
-          settings: _settings,
-          credits: _credits,
-        );
-      },
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => OrderPaymentScreen(order: order),
+      ),
     );
 
-    if (result == null || !mounted) {
-      return;
-    }
-
-    try {
-      await _repository.addPayment(
-        orderId: orderId,
-        amount: result.amount,
-        vehiclePercent: result.vehiclePercent,
-        personalPercent: result.personalPercent,
-        creditPercents: result.creditPercents,
-        note: result.note,
-      );
-
+    if (saved == true) {
       await _loadOrders();
-
-      if (!mounted) {
-        return;
-      }
-
-      // Даём закрывшемуся диалогу полностью завершить удаление
-      // из дерева виджетов перед открытием следующего окна.
-      await Future<void>.delayed(const Duration(milliseconds: 120));
-
-      if (!mounted) {
-        return;
-      }
-
-      await _showPaymentDistribution(result);
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Не удалось сохранить оплату: $error'),
-        ),
-      );
     }
   }
 
@@ -314,94 +270,152 @@ class _TodayOrdersSectionState extends State<TodayOrdersSection> {
     final payments = await _repository.getPayments(orderId);
     if (!mounted) return;
 
-    await showAdaptiveDialog<void>(
+    await showModalBottomSheet<void>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog.adaptive(
-          title: const Text('История оплат'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: payments.isEmpty
-                ? const Text('Оплат пока нет.')
-                : ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: payments.length,
-                    separatorBuilder: (_, __) => const Divider(),
-                    itemBuilder: (context, index) {
-                      final payment = payments[index];
-                      final amount =
-                          (payment['amount'] as num?)?.toDouble() ?? 0;
-                      final paidAt = DateTime.tryParse(
-                        payment['paid_at']?.toString() ?? '',
-                      );
-                      final dateText = paidAt == null
-                          ? ''
-                          : '${paidAt.day.toString().padLeft(2, '0')}.'
-                              '${paidAt.month.toString().padLeft(2, '0')}.'
-                              '${paidAt.year} '
-                              '${paidAt.hour.toString().padLeft(2, '0')}:'
-                              '${paidAt.minute.toString().padLeft(2, '0')}';
-                      final note = payment['note']?.toString();
-                      final vehiclePercent =
-                          (payment['vehicle_percent'] as num?)?.toDouble();
-                      final personalPercent =
-                          (payment['personal_percent'] as num?)?.toDouble();
-                      final distributionLines = <String>[];
-                      if (vehiclePercent != null) {
-                        distributionLines.add(
-                          'Автобус ${vehiclePercent.toStringAsFixed(vehiclePercent == vehiclePercent.roundToDouble() ? 0 : 1)}%',
-                        );
-                      }
-                      final rawCredits =
-                          payment['credit_distribution']?.toString();
-                      if (rawCredits != null && rawCredits.isNotEmpty) {
-                        try {
-                          final decoded = jsonDecode(rawCredits);
-                          if (decoded is Map) {
-                            for (final entry in decoded.entries) {
-                              final percent = entry.value is num
-                                  ? (entry.value as num).toDouble()
-                                  : double.tryParse(entry.value.toString()) ?? 0;
-                              distributionLines.add(
-                                '${entry.key} ${percent.toStringAsFixed(percent == percent.roundToDouble() ? 0 : 1)}%',
-                              );
-                            }
-                          }
-                        } catch (_) {}
-                      }
-                      if (personalPercent != null) {
-                        distributionLines.add(
-                          'Личные ${personalPercent.toStringAsFixed(personalPercent == personalPercent.roundToDouble() ? 0 : 1)}%',
-                        );
-                      }
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (sheetContext) {
+        return FractionallySizedBox(
+          heightFactor: 0.82,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 12, 12),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'История оплат',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Закрыть',
+                      onPressed: () => Navigator.pop(sheetContext),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: payments.isEmpty
+                    ? const Center(
+                        child: Text('Оплат пока нет.'),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                        itemCount: payments.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final payment = payments[index];
+                          final amount =
+                              (payment['amount'] as num?)?.toDouble() ?? 0;
+                          final paidAt = DateTime.tryParse(
+                            payment['paid_at']?.toString() ?? '',
+                          );
+                          final dateText = paidAt == null
+                              ? ''
+                              : '${paidAt.day.toString().padLeft(2, '0')}.'
+                                  '${paidAt.month.toString().padLeft(2, '0')}.'
+                                  '${paidAt.year} '
+                                  '${paidAt.hour.toString().padLeft(2, '0')}:'
+                                  '${paidAt.minute.toString().padLeft(2, '0')}';
+                          final note = payment['note']?.toString();
+                          final vehiclePercent =
+                              (payment['vehicle_percent'] as num?)?.toDouble();
+                          final personalPercent =
+                              (payment['personal_percent'] as num?)?.toDouble();
 
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.payments_outlined),
-                        title: Text(
-                          _formatMoney(amount),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        subtitle: Text(
-                          [
-                            if (dateText.isNotEmpty) dateText,
-                            if (distributionLines.isNotEmpty)
-                              distributionLines.join(' · '),
-                            if (note != null && note.trim().isNotEmpty) note,
-                          ].join('\n'),
-                        ),
-                      );
-                    },
-                  ),
+                          final distributionLines = <String>[];
+                          if (vehiclePercent != null) {
+                            distributionLines.add(
+                              'Автобус ${vehiclePercent.toStringAsFixed(vehiclePercent == vehiclePercent.roundToDouble() ? 0 : 1)}%',
+                            );
+                          }
+
+                          final rawCredits =
+                              payment['credit_distribution']?.toString();
+                          if (rawCredits != null && rawCredits.isNotEmpty) {
+                            try {
+                              final decoded = jsonDecode(rawCredits);
+                              if (decoded is Map) {
+                                for (final entry in decoded.entries) {
+                                  final percent = entry.value is num
+                                      ? (entry.value as num).toDouble()
+                                      : double.tryParse(
+                                            entry.value.toString(),
+                                          ) ??
+                                          0;
+                                  distributionLines.add(
+                                    '${entry.key} ${percent.toStringAsFixed(percent == percent.roundToDouble() ? 0 : 1)}%',
+                                  );
+                                }
+                              }
+                            } catch (_) {}
+                          }
+
+                          if (personalPercent != null) {
+                            distributionLines.add(
+                              'Личные ${personalPercent.toStringAsFixed(personalPercent == personalPercent.roundToDouble() ? 0 : 1)}%',
+                            );
+                          }
+
+                          return BusCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.payments_outlined),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        _formatMoney(amount),
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    if (dateText.isNotEmpty)
+                                      Text(
+                                        dateText,
+                                        textAlign: TextAlign.end,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall,
+                                      ),
+                                  ],
+                                ),
+                                if (distributionLines.isNotEmpty) ...[
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    distributionLines.join(' · '),
+                                  ),
+                                ],
+                                if (note != null &&
+                                    note.trim().isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    note,
+                                    style:
+                                        Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
           ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Закрыть'),
-            ),
-          ],
         );
       },
     );
