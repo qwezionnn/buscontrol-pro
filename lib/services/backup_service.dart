@@ -31,11 +31,13 @@ class BackupService extends ChangeNotifier {
     'trip_payouts',
     'order_payments',
     'credit_payments',
+    'fund_transfers',
     'settings',
   ];
 
   static const _deleteOrder = <String>[
     'order_payments',
+    'fund_transfers',
     'credit_payments',
     'daily_logs',
     'trips',
@@ -61,6 +63,7 @@ class BackupService extends ChangeNotifier {
     'trip_payouts',
     'order_payments',
     'credit_payments',
+    'fund_transfers',
     'settings',
   ];
 

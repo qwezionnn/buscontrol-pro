@@ -10,6 +10,7 @@ import '../../widgets/simple_bar_chart.dart';
 import 'finance_detail_screen.dart';
 import 'credits_screen.dart';
 import 'distribution_calculator_screen.dart';
+import 'fund_transfer_screen.dart';
 
 class FinanceScreen extends StatefulWidget {
   const FinanceScreen({super.key});
@@ -322,6 +323,41 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 12),
+            BusCard(
+              onTap: () async {
+                await Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    builder: (_) => const FundTransferScreen(),
+                  ),
+                );
+                await _load();
+              },
+              child: const Row(
+                children: [
+                  Icon(Icons.swap_horiz, size: 34),
+                  SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Перевод между счетами',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          'Автобус ↔ кредиты ↔ личные деньги',
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right),
+                ],
+              ),
+            ),
             const SizedBox(height: 16),
             if (_loading)
               const Padding(
@@ -336,24 +372,19 @@ class _FinanceScreenState extends State<FinanceScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Касса автобуса сейчас',
+                      'Доступно сейчас',
                       style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      _money(snapshot.vehicleCash),
-                      style: const TextStyle(
-                        fontSize: 34,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    const SizedBox(height: 10),
+                    _row('Автобус', snapshot.vehicleCash, strong: true),
+                    _row('Кредиты', snapshot.creditCash, strong: true),
+                    _row('Личные', snapshot.personalCash, strong: true),
                     const SizedBox(height: 6),
                     const Text(
-                      'Топливо и остальные расходы списываются '
-                      'только из фонда автобуса.',
+                      'Остатки учитывают расходы и ручные переводы между счетами.',
                     ),
                   ],
                 ),

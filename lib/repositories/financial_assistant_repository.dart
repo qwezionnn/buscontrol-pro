@@ -16,6 +16,9 @@ class FinancialSnapshot {
     required this.personalFund,
     required this.pendingTripPayout,
     required this.creditAllocations,
+    required this.vehicleTransferNet,
+    required this.creditTransferNet,
+    required this.personalTransferNet,
   });
 
   final double orderIncome;
@@ -31,11 +34,21 @@ class FinancialSnapshot {
   /// Сумма, рассчитанная отдельно для каждого активного кредита.
   final Map<String, double> creditAllocations;
 
+  /// Чистое изменение счёта из-за ручных переводов между фондами.
+  final double vehicleTransferNet;
+  final double creditTransferNet;
+  final double personalTransferNet;
+
   double get allocatedCreditFund =>
       creditAllocations.values.fold<double>(0, (sum, value) => sum + value);
 
   double get availableIncome => orderIncome + receivedTripIncome;
-  double get vehicleCash => vehicleFund - fuelCost - otherExpenses;
+
+  /// Текущие доступные остатки после расходов и ручных переводов.
+  double get vehicleCash =>
+      vehicleFund - fuelCost - otherExpenses + vehicleTransferNet;
+  double get creditCash => creditFund + creditTransferNet;
+  double get personalCash => personalFund + personalTransferNet;
 }
 
 class FinancialAssistantRepository {
@@ -58,6 +71,7 @@ class FinancialAssistantRepository {
     final expenses =
         await _database.getExpensesBetween('2000-01-01', '2999-12-31');
     final payments = await _database.getCompletedOrderPayments();
+    final transfers = await _database.getFundTransfers();
 
     final credits = await _credits.getCredits();
     final activeVehicleId = await _database.getActiveVehicleId();
@@ -200,6 +214,31 @@ class FinancialAssistantRepository {
           (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
         );
 
+    var vehicleTransferNet = 0.0;
+    var creditTransferNet = 0.0;
+    var personalTransferNet = 0.0;
+
+    void applyTransfer(String account, double delta) {
+      switch (account) {
+        case 'vehicle':
+          vehicleTransferNet += delta;
+          break;
+        case 'credit':
+          creditTransferNet += delta;
+          break;
+        case 'personal':
+          personalTransferNet += delta;
+          break;
+      }
+    }
+
+    for (final transfer in transfers) {
+      final amount = (transfer['amount'] as num?)?.toDouble() ?? 0;
+      if (amount <= 0) continue;
+      applyTransfer(transfer['from_account']?.toString() ?? '', -amount);
+      applyTransfer(transfer['to_account']?.toString() ?? '', amount);
+    }
+
     final allocatedCredit = creditAllocations.values.fold<double>(
       0,
       (sum, value) => sum + value,
@@ -218,7 +257,54 @@ class FinancialAssistantRepository {
           .clamp(0, double.infinity)
           .toDouble(),
       creditAllocations: creditAllocations,
+      vehicleTransferNet: vehicleTransferNet,
+      creditTransferNet: creditTransferNet,
+      personalTransferNet: personalTransferNet,
     );
+  }
+
+  Future<void> transferFunds({
+    required String fromAccount,
+    required String toAccount,
+    required double amount,
+    String? note,
+  }) async {
+    if (fromAccount == toAccount) {
+      throw ArgumentError('Выберите разные счета.');
+    }
+    if (amount <= 0) {
+      throw ArgumentError('Введите сумму больше нуля.');
+    }
+
+    final snapshot = await getSnapshot();
+    final available = switch (fromAccount) {
+      'vehicle' => snapshot.vehicleCash,
+      'credit' => snapshot.creditCash,
+      'personal' => snapshot.personalCash,
+      _ => 0.0,
+    };
+
+    if (amount - available > 0.005) {
+      throw StateError(
+        'На выбранном счёте недостаточно средств. '
+        'Доступно ${available.toStringAsFixed(0)} ₽.',
+      );
+    }
+
+    await _database.addFundTransfer(
+      fromAccount: fromAccount,
+      toAccount: toAccount,
+      amount: amount,
+      note: note,
+    );
+  }
+
+  Future<List<Map<String, Object?>>> getFundTransfers() {
+    return _database.getFundTransfers();
+  }
+
+  Future<void> deleteFundTransfer(int id) {
+    return _database.deleteFundTransfer(id);
   }
 
   Future<void> receiveTripPayout({

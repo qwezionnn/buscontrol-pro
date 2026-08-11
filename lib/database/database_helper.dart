@@ -41,7 +41,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 10,
+      version: 11,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -72,6 +72,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 10) {
       await _upgradeToVersion10(db);
+    }
+    if (oldVersion < 11) {
+      await _upgradeToVersion11(db);
     }
     await _createTables(db);
     await _insertDefaultSettings(db);
@@ -228,6 +231,18 @@ class DatabaseHelper {
         paid_at TEXT NOT NULL,
         note TEXT,
         FOREIGN KEY(credit_id) REFERENCES credits(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS fund_transfers(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vehicle_id INTEGER NOT NULL DEFAULT 1,
+        from_account TEXT NOT NULL,
+        to_account TEXT NOT NULL,
+        amount REAL NOT NULL,
+        transferred_at TEXT NOT NULL,
+        note TEXT
       )
     ''');
 
@@ -471,6 +486,20 @@ class DatabaseHelper {
     }
   }
 
+
+  Future<void> _upgradeToVersion11(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS fund_transfers(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vehicle_id INTEGER NOT NULL DEFAULT 1,
+        from_account TEXT NOT NULL,
+        to_account TEXT NOT NULL,
+        amount REAL NOT NULL,
+        transferred_at TEXT NOT NULL,
+        note TEXT
+      )
+    ''');
+  }
 
   Future<int> getActiveVehicleId() async {
     final value = await getSetting('active_vehicle_id');
@@ -1465,6 +1494,54 @@ class DatabaseHelper {
 
 
 
+  Future<int> addFundTransfer({
+    required String fromAccount,
+    required String toAccount,
+    required double amount,
+    String? note,
+  }) async {
+    if (fromAccount == toAccount) {
+      throw ArgumentError('Счета отправителя и получателя совпадают.');
+    }
+    if (amount <= 0) {
+      throw ArgumentError('Сумма перевода должна быть больше нуля.');
+    }
+
+    final db = await database;
+    final vehicleId = await getActiveVehicleId();
+    return db.insert('fund_transfers', {
+      'vehicle_id': vehicleId,
+      'from_account': fromAccount,
+      'to_account': toAccount,
+      'amount': amount,
+      'transferred_at': DateTime.now().toIso8601String(),
+      'note': note?.trim(),
+    });
+  }
+
+  Future<List<Map<String, Object?>>> getFundTransfers() async {
+    final db = await database;
+    final vehicleId = await getActiveVehicleId();
+    return db.query(
+      'fund_transfers',
+      where: 'vehicle_id = ?',
+      whereArgs: [vehicleId],
+      orderBy: 'transferred_at DESC, id DESC',
+    );
+  }
+
+  Future<void> deleteFundTransfer(int id) async {
+    final db = await database;
+    await db.delete(
+      'fund_transfers',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+
+
+
 
   static const List<String> _syncTables = <String>[
     'vehicles',
@@ -1479,6 +1556,7 @@ class DatabaseHelper {
     'trip_payouts',
     'credits',
     'credit_payments',
+    'fund_transfers',
   ];
 
   /// Создаёт переносимый снимок всей локальной рабочей базы.
@@ -1502,7 +1580,7 @@ class DatabaseHelper {
 
     return <String, dynamic>{
       'format': 1,
-      'database_version': 10,
+      'database_version': 11,
       'exported_at': DateTime.now().toUtc().toIso8601String(),
       'tables': tables,
     };
@@ -1523,6 +1601,7 @@ class DatabaseHelper {
       // Сначала дочерние таблицы, затем родительские.
       for (final table in <String>[
         'order_payments',
+        'fund_transfers',
         'credit_payments',
         'daily_logs',
         'trips',

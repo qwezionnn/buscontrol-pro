@@ -1,0 +1,11 @@
+Исправление двух ошибок flutter analyze:
+
+1. Добавлен отсутствующий метод DatabaseHelper._upgradeToVersion11().
+2. Удаление перевода по долгому нажатию теперь сделано через GestureDetector,
+   потому что BusCard не поддерживает параметр onLongPress.
+
+Установка:
+распаковать поверх C:\Projects\bus_control_pro_final с заменой файлов.
+
+Проверка:
+flutter analyze

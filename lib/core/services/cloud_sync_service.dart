@@ -79,10 +79,8 @@ class CloudSyncService extends ChangeNotifier {
       } else {
         final cloudHash = cloudRow['payload_hash']?.toString() ?? '';
 
-        // Первое подключение нового устройства: если в облаке уже есть снимок,
-        // облако является источником истины. Раньше lastHash == null считался
-        // "локальным изменением", из-за чего пустая/новая база второго телефона
-        // могла перезаписать существующую облачную копию.
+        // Первое подключение нового устройства: существующее облако
+        // является источником истины и сначала скачивается локально.
         if (lastHash == null) {
           final payload = cloudRow['payload'];
           if (payload is Map) {
@@ -106,12 +104,12 @@ class CloudSyncService extends ChangeNotifier {
               _revision++;
             }
           } else if (localChanged) {
-          // При конфликте офлайн-изменения текущего устройства имеют приоритет.
-          await _upload(
-            userId: user.id,
-            snapshot: localSnapshot,
-            payloadHash: localHash,
-          );
+            // При конфликте офлайн-изменения текущего устройства имеют приоритет.
+            await _upload(
+              userId: user.id,
+              snapshot: localSnapshot,
+              payloadHash: localHash,
+            );
             await _saveSyncMetadata(localHash);
           } else {
             await _database.setSetting(
