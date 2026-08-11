@@ -149,6 +149,18 @@ class SettingsRepository extends ChangeNotifier {
   }
 
 
+  Future<void> notifyMileageChanged() async {
+    _revision++;
+    notifyListeners();
+  }
+
+  Future<void> resetMileage() async {
+    await _databaseHelper.resetMileageData();
+
+    _revision++;
+    notifyListeners();
+  }
+
   Future<void> resetAllData() async {
     await _databaseHelper.resetAllData();
 

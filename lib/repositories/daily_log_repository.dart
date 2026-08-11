@@ -154,6 +154,39 @@ class DailyLogRepository {
     return DailyLog.fromMap(savedRow);
   }
 
+  Future<void> deleteDayMileage(DateTime date) async {
+    await _databaseHelper.deleteDailyLog(databaseDate(date));
+
+    // После удаления пересчитываем текущий одометр по последнему
+    // оставшемуся завершённому дню. Если истории больше нет —
+    // возвращаемся к начальному пробегу, если он задан.
+    final lastMileage = await _databaseHelper.getLastMileage();
+    final vehicleId = await _databaseHelper.getActiveVehicleId();
+
+    if (lastMileage != null) {
+      await _databaseHelper.setSetting(
+        'current_mileage_$vehicleId',
+        lastMileage.toString(),
+      );
+    } else {
+      final initial = await _databaseHelper.getSetting(
+        'initial_mileage_$vehicleId',
+      );
+      if (initial != null) {
+        await _databaseHelper.setSetting(
+          'current_mileage_$vehicleId',
+          initial,
+        );
+      } else {
+        await _databaseHelper.deleteSetting(
+          'current_mileage_$vehicleId',
+        );
+      }
+    }
+
+    await _settingsRepository.notifyMileageChanged();
+  }
+
   Future<bool> isDayCompleted(DateTime date) async {
     final log = await getLogForDate(date);
     return log.isCompleted;

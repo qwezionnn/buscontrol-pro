@@ -870,6 +870,58 @@ class DatabaseHelper {
     );
   }
 
+  Future<void> deleteDailyLog(String date) async {
+    final db = await database;
+    final vehicleId = await getActiveVehicleId();
+
+    await db.delete(
+      'daily_logs',
+      where: 'vehicle_id = ? AND date = ?',
+      whereArgs: [vehicleId, date],
+    );
+  }
+
+  Future<void> resetMileageData() async {
+    final db = await database;
+    final vehicleId = await getActiveVehicleId();
+
+    await db.transaction((transaction) async {
+      await transaction.delete(
+        'daily_logs',
+        where: 'vehicle_id = ?',
+        whereArgs: [vehicleId],
+      );
+
+      await transaction.delete(
+        'settings',
+        where: 'key IN (?, ?)',
+        whereArgs: [
+          'initial_mileage_$vehicleId',
+          'current_mileage_$vehicleId',
+        ],
+      );
+
+      // У старого первого автобуса могли остаться legacy-ключи.
+      if (vehicleId == 1) {
+        await transaction.delete(
+          'settings',
+          where: 'key IN (?, ?)',
+          whereArgs: const [
+            'initial_mileage',
+            'current_mileage',
+          ],
+        );
+      }
+
+      await transaction.update(
+        'vehicles',
+        {'initial_mileage': null},
+        where: 'id = ?',
+        whereArgs: [vehicleId],
+      );
+    });
+  }
+
   Future<int?> getLastMileage() async {
     final db = await database;
     final vehicleId = await getActiveVehicleId();

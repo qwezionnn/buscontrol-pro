@@ -7,6 +7,7 @@ import '../../repositories/order_repository.dart';
 import '../../repositories/trip_repository.dart';
 import '../../repositories/fuel_repository.dart';
 import '../../repositories/expense_repository.dart';
+import '../../repositories/daily_log_repository.dart';
 import '../../widgets/bus_card.dart';
 import '../expenses/add_expense_screen.dart';
 import '../fuel/add_fuel_screen.dart';
@@ -502,6 +503,37 @@ class _CalendarScreenState extends State<CalendarScreen> {
     await _load();
   }
 
+  Future<void> _deleteMileageForDate(
+    DateTime date,
+    DayEvents data,
+  ) async {
+    if (!data.hasMileage) return;
+
+    final dateText =
+        '${date.day.toString().padLeft(2, '0')}.'
+        '${date.month.toString().padLeft(2, '0')}.${date.year}';
+
+    final confirmed = await _confirmDelete(
+      title: 'Удалить пробег за $dateText?',
+      message:
+          'Запись суточного пробега'
+          '${data.distance != null ? ' (${data.distance} км)' : ''} '
+          'будет удалена. Рейсы, заказы, топливо и расходы этой даты останутся.',
+    );
+    if (!confirmed) return;
+
+    await DailyLogRepository.instance.deleteDayMileage(date);
+    await _load();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Пробег за $dateText удалён.'),
+        ),
+      );
+    }
+  }
+
   Future<void> _showDay(DateTime date) async {
     final data = await _repository.getDayEvents(date);
     if (!mounted) return;
@@ -616,7 +648,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     _eventTile(
                       Icons.speed,
                       'Пробег за день',
-                      '${data.distance} км',
+                      [
+                        '${data.distance} км за день',
+                        if (data.endMileage != null)
+                          'конечный ${data.endMileage} км',
+                      ].join(' • '),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Future<void>.delayed(
+                          const Duration(milliseconds: 120),
+                          () => _deleteMileageForDate(date, data),
+                        );
+                      },
+                      trailing: const Icon(
+                        Icons.delete_outline,
+                        color: Colors.red,
+                      ),
                     ),
                 ],
               );
@@ -704,26 +751,36 @@ class _CalendarScreenState extends State<CalendarScreen> {
               ),
             ),
             const Spacer(),
-            SizedBox(
-              height: 14,
-              child: FittedBox(
-                alignment: Alignment.bottomLeft,
-                fit: BoxFit.scaleDown,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (data?.hasTrips == true)
-                      const Icon(Icons.directions_bus, size: 13),
-                    if (data?.hasOrders == true)
-                      const Icon(Icons.local_taxi, size: 13),
-                    if (data?.hasFuel == true)
-                      const Icon(Icons.local_gas_station, size: 13),
-                    if (data?.hasExpenses == true)
-                      const Icon(Icons.receipt_long, size: 13),
-                    if (data?.hasMileage == true)
-                      const Icon(Icons.speed, size: 13),
-                  ],
-                ),
+            FittedBox(
+              alignment: Alignment.bottomLeft,
+              fit: BoxFit.scaleDown,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (data?.hasTrips == true)
+                        const Icon(Icons.directions_bus, size: 13),
+                      if (data?.hasOrders == true)
+                        const Icon(Icons.local_taxi, size: 13),
+                      if (data?.hasFuel == true)
+                        const Icon(Icons.local_gas_station, size: 13),
+                      if (data?.hasExpenses == true)
+                        const Icon(Icons.receipt_long, size: 13),
+                      if (data?.hasMileage == true)
+                        const Icon(Icons.speed, size: 13),
+                    ],
+                  ),
+                  if (data?.distance != null)
+                    Text(
+                      '${data!.distance} км',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                ],
               ),
             ),
           ],

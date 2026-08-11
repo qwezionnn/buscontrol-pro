@@ -36,6 +36,8 @@ class DayEvents {
     required this.fuelLogs,
     required this.expenses,
     required this.distance,
+    required this.startMileage,
+    required this.endMileage,
   });
 
   final String date;
@@ -44,6 +46,8 @@ class DayEvents {
   final List<Map<String, Object?>> fuelLogs;
   final List<Map<String, Object?>> expenses;
   final int? distance;
+  final int? startMileage;
+  final int? endMileage;
 
   bool get hasTrips => trips.isNotEmpty;
   bool get hasOrders => orders.isNotEmpty;
@@ -153,6 +157,8 @@ class ReportRepository {
     final fuelMap = <String, List<Map<String, Object?>>>{};
     final expenseMap = <String, List<Map<String, Object?>>>{};
     final distanceMap = <String, int>{};
+    final startMileageMap = <String, int>{};
+    final endMileageMap = <String, int>{};
 
     for (final row in trips) {
       tripMap.putIfAbsent(row['date'].toString(), () => []).add(row);
@@ -169,8 +175,11 @@ class ReportRepository {
     for (final row in logs) {
       final start = (row['start_mileage'] as num?)?.toInt();
       final end = (row['end_mileage'] as num?)?.toInt();
+      final date = row['date'].toString();
+      if (start != null) startMileageMap[date] = start;
+      if (end != null) endMileageMap[date] = end;
       if (start != null && end != null) {
-        distanceMap[row['date'].toString()] = end - start;
+        distanceMap[date] = end - start;
       }
     }
 
@@ -191,6 +200,8 @@ class ReportRepository {
           fuelLogs: fuelMap[date] ?? const [],
           expenses: expenseMap[date] ?? const [],
           distance: distanceMap[date],
+          startMileage: startMileageMap[date],
+          endMileage: endMileageMap[date],
         ),
     };
   }
@@ -212,6 +223,8 @@ class ReportRepository {
       fuelLogs: fuel,
       expenses: expenses,
       distance: start != null && end != null ? end - start : null,
+      startMileage: start,
+      endMileage: end,
     );
   }
 }

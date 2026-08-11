@@ -36,6 +36,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isResetting = false;
+  bool _isResettingMileage = false;
   bool _isBackingUp = false;
 
   @override
@@ -234,6 +235,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() {
           _isSaving = false;
         });
+      }
+    }
+  }
+
+
+  Future<void> _resetMileage() async {
+    final confirmed = await showAdaptiveDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog.adaptive(
+        icon: const Icon(
+          Icons.speed_outlined,
+          color: Colors.orange,
+          size: 36,
+        ),
+        title: const Text('Сбросить пробег?'),
+        content: const Text(
+          'Будет удалена только история суточного пробега и текущий/начальный '
+          'пробег активного автобуса. Рейсы, заказы, топливо, расходы и '
+          'финансовые данные останутся без изменений.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Сбросить пробег'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isResettingMileage = true);
+    try {
+      await _repository.resetMileage();
+      _initialMileageController.clear();
+      FocusScope.of(context).unfocus();
+      _showMessage(
+        'Пробег сброшен. Можно заново указать текущее показание одометра.',
+      );
+    } catch (error) {
+      if (mounted) {
+        _showMessage('Не удалось сбросить пробег: $error');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isResettingMileage = false);
       }
     }
   }
@@ -936,6 +987,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'рейсы, заказы, топливо, расходы, пробег и настройки.',
                   ),
                   const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: (_isSaving ||
+                              _isResetting ||
+                              _isResettingMileage)
+                          ? null
+                          : _resetMileage,
+                      icon: _isResettingMileage
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Icon(Icons.speed_outlined),
+                      label: Text(
+                        _isResettingMileage
+                            ? 'Сбрасываем пробег...'
+                            : 'Сбросить только пробег',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
