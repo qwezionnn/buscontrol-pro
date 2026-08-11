@@ -21,6 +21,7 @@ class _TodayFinishDaySectionState
   TextEditingController();
 
   DailyLog? _dailyLog;
+  DateTime _selectedDate = DateTime.now();
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -46,7 +47,7 @@ class _TodayFinishDaySectionState
 
     try {
       final dailyLog = await _repository.getLogForDate(
-        DateTime.now(),
+        _selectedDate,
       );
 
       if (!mounted) {
@@ -98,7 +99,7 @@ class _TodayFinishDaySectionState
 
     try {
       final savedLog = await _repository.completeDay(
-        date: DateTime.now(),
+        date: _selectedDate,
         endMileage: endMileage,
       );
 
@@ -131,6 +132,60 @@ class _TodayFinishDaySectionState
     }
   }
 
+  String _formatDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$day.$month.${date.year}';
+  }
+
+  Future<void> _selectDate() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate.isAfter(today) ? today : _selectedDate,
+      firstDate: DateTime(2000),
+      lastDate: today,
+      helpText: 'Дата конечного пробега',
+      cancelText: 'Отмена',
+      confirmText: 'Выбрать',
+    );
+
+    if (selected == null || !mounted) return;
+
+    setState(() {
+      _selectedDate = DateTime(
+        selected.year,
+        selected.month,
+        selected.day,
+      );
+      _endMileageController.clear();
+    });
+
+    await _loadDailyLog();
+  }
+
+  void _editCompletedMileage() {
+    final current = _dailyLog;
+    if (current == null) return;
+
+    final endMileage = current.endMileage;
+    if (endMileage != null) {
+      _endMileageController.text = endMileage.toString();
+    }
+
+    setState(() {
+      _dailyLog = DailyLog(
+        id: current.id,
+        date: current.date,
+        startMileage: current.startMileage,
+        endMileage: null,
+        completedAt: current.completedAt,
+      );
+    });
+  }
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -158,6 +213,44 @@ class _TodayFinishDaySectionState
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildDateSelector() {
+    return BusCard(
+      child: Row(
+        children: [
+          const Icon(Icons.calendar_month_outlined),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Дата пробега',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _formatDate(_selectedDate),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton.icon(
+            onPressed: _isSaving ? null : _selectDate,
+            icon: const Icon(Icons.edit_calendar_outlined),
+            label: const Text('Изменить'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -190,6 +283,13 @@ class _TodayFinishDaySectionState
           const SizedBox(height: 18),
 
           _buildMileageRow(
+            title: 'Дата',
+            value: _formatDate(_selectedDate),
+          ),
+
+          const SizedBox(height: 10),
+
+          _buildMileageRow(
             title: 'Конечный пробег',
             value: dailyLog.endMileageText,
           ),
@@ -200,6 +300,17 @@ class _TodayFinishDaySectionState
             title: 'Пробег за день',
             value: dailyLog.distanceText,
             isStrong: true,
+          ),
+
+          const SizedBox(height: 16),
+
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _isSaving ? null : _editCompletedMileage,
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('Исправить конечный пробег'),
+            ),
           ),
         ],
       ),
@@ -272,7 +383,8 @@ class _TodayFinishDaySectionState
           const SizedBox(height: 10),
 
           const Text(
-            'Введите показание одометра, когда закончите поездки.',
+            'Введите показание одометра в любое время, как только '
+            'работа за выбранный день закончилась.',
           ),
 
           const SizedBox(height: 16),
@@ -354,14 +466,22 @@ class _TodayFinishDaySectionState
       );
     }
 
+    Widget content;
     if (dailyLog.startMileage == null) {
-      return _buildMissingInitialMileageView();
+      content = _buildMissingInitialMileageView();
+    } else if (dailyLog.isCompleted) {
+      content = _buildCompletedView(dailyLog);
+    } else {
+      content = _buildUnfinishedView(dailyLog);
     }
 
-    if (dailyLog.isCompleted) {
-      return _buildCompletedView(dailyLog);
-    }
-
-    return _buildUnfinishedView(dailyLog);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildDateSelector(),
+        const SizedBox(height: 12),
+        content,
+      ],
+    );
   }
 }

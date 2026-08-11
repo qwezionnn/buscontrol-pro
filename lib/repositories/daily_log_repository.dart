@@ -48,21 +48,37 @@ class DailyLogRepository {
   }
 
   Future<DailyLog> getLogForDate(DateTime date) async {
-    final dateText = databaseDate(date);
+    final normalizedDate = DateTime(date.year, date.month, date.day);
+    final dateText = databaseDate(normalizedDate);
     final existingRow = await _databaseHelper.getDailyLog(dateText);
 
     if (existingRow != null) {
       return DailyLog.fromMap(existingRow);
     }
 
-    // Настройка текущего пробега имеет приоритет. Это позволяет
-    // исправить пробег вручную, даже если в тестовой базе уже есть история.
+    // Для прошлой даты берём конечный пробег ближайшего предыдущего
+    // завершённого дня. Это позволяет корректно вносить пробег задним числом.
+    final previousDay = normalizedDate.subtract(const Duration(days: 1));
+    final previousLogs = await _databaseHelper.getDailyLogsBetween(
+      '1900-01-01',
+      databaseDate(previousDay),
+    );
+
+    for (final row in previousLogs.reversed) {
+      final endMileage = (row['end_mileage'] as num?)?.toInt();
+      if (endMileage != null) {
+        return DailyLog(
+          date: dateText,
+          startMileage: endMileage,
+        );
+      }
+    }
+
     final configuredMileage = await _getConfiguredMileage();
-    final lastMileage = await _databaseHelper.getLastMileage();
 
     return DailyLog(
       date: dateText,
-      startMileage: configuredMileage ?? lastMileage,
+      startMileage: configuredMileage,
     );
   }
 
@@ -103,9 +119,27 @@ class DailyLogRepository {
       endMileage: endMileage,
     );
 
-    await _settingsRepository.updateMileageAfterCompletedDay(
-      endMileage,
+    // Если пробег вносится задним числом, не откатываем текущий
+    // одометр автобуса назад. Текущий пробег обновляем только если
+    // после выбранной даты нет уже завершённых дней.
+    final nextDay = DateTime(
+      date.year,
+      date.month,
+      date.day,
+    ).add(const Duration(days: 1));
+    final futureLogs = await _databaseHelper.getDailyLogsBetween(
+      databaseDate(nextDay),
+      '9999-12-31',
     );
+    final hasCompletedFutureDay = futureLogs.any(
+      (row) => row['end_mileage'] != null,
+    );
+
+    if (!hasCompletedFutureDay) {
+      await _settingsRepository.updateMileageAfterCompletedDay(
+        endMileage,
+      );
+    }
 
     final savedRow = await _databaseHelper.getDailyLog(
       databaseDate(date),
