@@ -14,6 +14,17 @@
       "versions": [
         {
           "version": "4.1.0",
+          "buildVersion": "16",
+          "marketingVersion": "4.1.0 (16)",
+          "date": "2026-08-13T15:11:04.729392+00:00",
+          "localizedDescription": "Automatic BusControl PRO build.",
+          "downloadURL": "https://github.com/qwezionnn/buscontrol-pro/releases/download/v4.1.0-16/BusControl_PRO.ipa",
+          "size": 11203991,
+          "sha256": "d39e91de7ee1fe34d91fc8f47dc823523a4df7deba1ea15e32786c18ca8ad0c8",
+          "minOSVersion": "15.0"
+        },
+        {
+          "version": "4.1.0",
           "buildVersion": "13",
           "marketingVersion": "4.1.0 (13)",
           "date": "2026-08-11T18:20:44.518730+00:00",
