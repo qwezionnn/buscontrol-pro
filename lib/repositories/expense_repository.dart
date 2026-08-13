@@ -49,6 +49,42 @@ class ExpenseRepository {
     return _databaseHelper.deleteExpense(id);
   }
 
+  Future<List<Expense>> getExpensesForMonth(DateTime month) async {
+    final db = await _databaseHelper.database;
+    final monthText = month.month.toString().padLeft(2, '0');
+    final prefix = '${month.year}-$monthText-';
+
+    final rows = await db.query(
+      'expenses',
+      where: 'date LIKE ?',
+      whereArgs: ['$prefix%'],
+      orderBy: 'date DESC, time DESC, id DESC',
+    );
+
+    return rows.map(Expense.fromMap).toList();
+  }
+
+  Future<void> updateExpense(Expense expense) async {
+    final id = expense.id;
+    if (id == null) {
+      throw ArgumentError('Нельзя изменить расход без id.');
+    }
+
+    final db = await _databaseHelper.database;
+    await db.update(
+      'expenses',
+      {
+        'date': expense.date,
+        'time': expense.time,
+        'category': expense.category,
+        'description': expense.description,
+        'amount': expense.amount,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   Future<double> getTotalForDate(
       DateTime date,
       ) async {

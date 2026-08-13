@@ -4,9 +4,14 @@ import '../../models/expense.dart';
 import '../../repositories/expense_repository.dart';
 
 class AddExpenseScreen extends StatefulWidget {
-  const AddExpenseScreen({super.key, this.initialDate});
+  const AddExpenseScreen({
+    super.key,
+    this.initialDate,
+    this.expense,
+  });
 
   final DateTime? initialDate;
+  final Expense? expense;
 
   @override
   State<AddExpenseScreen> createState() => _AddExpenseScreenState();
@@ -29,9 +34,42 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   @override
   void initState() {
     super.initState();
+
+    final expense = widget.expense;
+    if (expense != null) {
+      final parsedDate = DateTime.tryParse(expense.date);
+      if (parsedDate != null) {
+        _selectedDate = DateTime(
+          parsedDate.year,
+          parsedDate.month,
+          parsedDate.day,
+        );
+      }
+
+      final timeParts = (expense.time ?? '').split(':');
+      if (timeParts.length == 2) {
+        final hour = int.tryParse(timeParts[0]);
+        final minute = int.tryParse(timeParts[1]);
+        if (hour != null && minute != null) {
+          _selectedTime = TimeOfDay(hour: hour, minute: minute);
+        }
+      }
+
+      _categoryController.text = expense.category;
+      _amountController.text = expense.amount.toStringAsFixed(
+        expense.amount == expense.amount.roundToDouble() ? 0 : 2,
+      );
+      _descriptionController.text = expense.description ?? '';
+      return;
+    }
+
     final initialDate = widget.initialDate;
     if (initialDate != null) {
-      _selectedDate = DateTime(initialDate.year, initialDate.month, initialDate.day);
+      _selectedDate = DateTime(
+        initialDate.year,
+        initialDate.month,
+        initialDate.day,
+      );
     }
   }
 
@@ -125,6 +163,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
     try {
       final expense = Expense(
+        id: widget.expense?.id,
         date: _databaseDate(_selectedDate),
         time: _databaseTime(_selectedTime),
         category: _categoryController.text.trim(),
@@ -134,7 +173,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         amount: amount,
       );
 
-      await _repository.addExpense(expense);
+      if (widget.expense == null) {
+        await _repository.addExpense(expense);
+      } else {
+        await _repository.updateExpense(expense);
+      }
 
       if (!mounted) {
         return;
@@ -166,7 +209,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Новый расход'),
+        title: Text(widget.expense == null ? 'Новый расход' : 'Редактировать расход'),
       ),
       body: SafeArea(
         child: Form(
@@ -281,7 +324,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 label: Text(
                   _isSaving
                       ? 'Сохраняем...'
-                      : 'Сохранить расход',
+                      : widget.expense == null
+                          ? 'Сохранить расход'
+                          : 'Сохранить изменения',
                 ),
               ),
             ],

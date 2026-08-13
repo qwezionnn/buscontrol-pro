@@ -1,0 +1,1 @@
+Исправлена ошибка report.expenses в bus_screen.dart. Распаковать поверх C:\\Projects\\bus_control_pro_final и выполнить flutter analyze.

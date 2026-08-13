@@ -9,6 +9,7 @@ import '../expenses/emergency_expense_screen.dart';
 import '../finance/finance_detail_screen.dart';
 import 'mileage_history_screen.dart';
 import 'maintenance_screen.dart';
+import 'bus_expenses_screen.dart';
 
 class BusScreen extends StatefulWidget {
   const BusScreen({super.key});
@@ -99,6 +100,15 @@ class _BusScreenState extends State<BusScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _openBusExpenses() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => const BusExpensesScreen(),
+      ),
+    );
+    await _load();
   }
 
   Future<void> _openMileageHistory() async {
@@ -242,6 +252,34 @@ class _BusScreenState extends State<BusScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+              BusCard(
+                onTap: _openBusExpenses,
+                child: Row(
+                  children: [
+                    const Icon(Icons.receipt_long_outlined, size: 34),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Расходы',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            'История покупок, ремонта и других расходов',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               BusCard(
                 onTap: () async {
                   await Navigator.of(context).push<void>(
