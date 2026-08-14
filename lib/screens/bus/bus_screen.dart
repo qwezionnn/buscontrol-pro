@@ -10,6 +10,8 @@ import '../finance/finance_detail_screen.dart';
 import 'mileage_history_screen.dart';
 import 'maintenance_screen.dart';
 import 'bus_expenses_screen.dart';
+import 'part_bookmarks_screen.dart';
+import 'repair_history_screen.dart';
 
 class BusScreen extends StatefulWidget {
   const BusScreen({super.key});
@@ -109,6 +111,18 @@ class _BusScreenState extends State<BusScreen> {
       ),
     );
     await _load();
+  }
+
+  Future<void> _openPartBookmarks() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const PartBookmarksScreen()),
+    );
+  }
+
+  Future<void> _openRepairs() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const RepairHistoryScreen()),
+    );
   }
 
   Future<void> _openMileageHistory() async {
@@ -276,6 +290,36 @@ class _BusScreenState extends State<BusScreen> {
                       ),
                     ),
                     const Icon(Icons.chevron_right),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              BusCard(
+                onTap: _openPartBookmarks,
+                child: const Row(
+                  children: [
+                    Icon(Icons.bookmarks_outlined, size: 34),
+                    SizedBox(width: 14),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Закладки', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                      Text('Проверенные запчасти, бренды и артикулы'),
+                    ])),
+                    Icon(Icons.chevron_right),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              BusCard(
+                onTap: _openRepairs,
+                child: const Row(
+                  children: [
+                    Icon(Icons.build_outlined, size: 34),
+                    SizedBox(width: 14),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Ремонт', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                      Text('История ремонта по датам и пробегу'),
+                    ])),
+                    Icon(Icons.chevron_right),
                   ],
                 ),
               ),

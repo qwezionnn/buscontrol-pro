@@ -30,6 +30,24 @@ class OrderRepository {
     return orders;
   }
 
+  Future<List<Order>> getOutstandingOrders() async {
+    final db = await _databaseHelper.database;
+    final vehicleId = await _databaseHelper.getActiveVehicleId();
+    final rows = await db.rawQuery(
+      '''
+      SELECT o.*,
+        COALESCE((SELECT SUM(p.amount) FROM order_payments p WHERE p.order_id = o.id), 0) AS paid_amount
+      FROM orders o
+      WHERE o.vehicle_id = ?
+        AND o.status = 'completed'
+        AND COALESCE((SELECT SUM(p.amount) FROM order_payments p WHERE p.order_id = o.id), 0) < o.amount
+      ORDER BY o.date ASC, o.time ASC
+      ''',
+      [vehicleId],
+    );
+    return rows.map(Order.fromMap).toList();
+  }
+
   /// Добавляет новый заказ.
   Future<int> addOrder(Order order) {
     return _databaseHelper.addOrder(

@@ -41,7 +41,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 11,
+      version: 12,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -75,6 +75,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 11) {
       await _upgradeToVersion11(db);
+    }
+    if (oldVersion < 12) {
+      await _upgradeToVersion12(db);
     }
     await _createTables(db);
     await _insertDefaultSettings(db);
@@ -252,6 +255,8 @@ class DatabaseHelper {
         value TEXT NOT NULL
       )
     ''');
+
+    await _createWorkshopTables(db);
 
     await db.execute(
       'CREATE INDEX IF NOT EXISTS index_daily_logs_date ON daily_logs(date)',
@@ -486,6 +491,50 @@ class DatabaseHelper {
     }
   }
 
+
+  Future<void> _upgradeToVersion12(Database db) async {
+    await _createWorkshopTables(db);
+  }
+
+  Future<void> _createWorkshopTables(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS part_bookmarks(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vehicle_id INTEGER NOT NULL DEFAULT 1,
+        name TEXT NOT NULL,
+        brand TEXT,
+        article TEXT,
+        shop TEXT,
+        price REAL,
+        url TEXT,
+        note TEXT,
+        created_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS repairs(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vehicle_id INTEGER NOT NULL DEFAULT 1,
+        date TEXT NOT NULL,
+        mileage INTEGER,
+        title TEXT NOT NULL,
+        part_source TEXT NOT NULL DEFAULT 'manual',
+        part_name TEXT,
+        expense_id INTEGER,
+        bookmark_id INTEGER,
+        self_repair INTEGER NOT NULL DEFAULT 1,
+        work_cost REAL,
+        part_cost REAL,
+        vehicle_paid REAL NOT NULL DEFAULT 0,
+        personal_paid REAL NOT NULL DEFAULT 0,
+        credit_paid REAL NOT NULL DEFAULT 0,
+        note TEXT,
+        created_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('CREATE INDEX IF NOT EXISTS index_part_bookmarks_vehicle ON part_bookmarks(vehicle_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS index_repairs_date ON repairs(vehicle_id, date)');
+  }
 
   Future<void> _upgradeToVersion11(Database db) async {
     await db.execute('''
@@ -1490,6 +1539,77 @@ class DatabaseHelper {
     }
     final databasePath = await getDatabasesPath();
     return join(databasePath, 'bus_control_pro.db');
+  }
+
+  Future<List<Map<String, Object?>>> getPartBookmarks() async {
+    final db = await database;
+    final vehicleId = await getActiveVehicleId();
+    return db.query(
+      'part_bookmarks',
+      where: 'vehicle_id = ?',
+      whereArgs: [vehicleId],
+      orderBy: 'name COLLATE NOCASE ASC, id DESC',
+    );
+  }
+
+  Future<int> savePartBookmark(Map<String, Object?> values, {int? id}) async {
+    final db = await database;
+    final vehicleId = await getActiveVehicleId();
+    final data = <String, Object?>{
+      ...values,
+      'vehicle_id': vehicleId,
+      'created_at': values['created_at'] ?? DateTime.now().toIso8601String(),
+    };
+    if (id == null) return db.insert('part_bookmarks', data);
+    data.remove('created_at');
+    await db.update('part_bookmarks', data, where: 'id = ?', whereArgs: [id]);
+    return id;
+  }
+
+  Future<void> deletePartBookmark(int id) async {
+    final db = await database;
+    await db.delete('part_bookmarks', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<Map<String, Object?>>> getRepairs() async {
+    final db = await database;
+    final vehicleId = await getActiveVehicleId();
+    return db.query(
+      'repairs',
+      where: 'vehicle_id = ?',
+      whereArgs: [vehicleId],
+      orderBy: 'date DESC, id DESC',
+    );
+  }
+
+  Future<int> saveRepair(Map<String, Object?> values, {int? id}) async {
+    final db = await database;
+    final vehicleId = await getActiveVehicleId();
+    final data = <String, Object?>{
+      ...values,
+      'vehicle_id': vehicleId,
+      'created_at': values['created_at'] ?? DateTime.now().toIso8601String(),
+    };
+    if (id == null) return db.insert('repairs', data);
+    data.remove('created_at');
+    await db.update('repairs', data, where: 'id = ?', whereArgs: [id]);
+    return id;
+  }
+
+  Future<void> deleteRepair(int id) async {
+    final db = await database;
+    await db.delete('repairs', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<Map<String, Object?>>> getAllExpenses() async {
+    final db = await database;
+    final vehicleId = await getActiveVehicleId();
+    return db.query(
+      'expenses',
+      where: 'vehicle_id = ?',
+      whereArgs: [vehicleId],
+      orderBy: 'date DESC, time DESC, id DESC',
+    );
   }
 
   Future<String?> getSetting(String key) async {

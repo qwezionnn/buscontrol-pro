@@ -561,6 +561,29 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         ),
                   ),
                   const SizedBox(height: 12),
+                  if (data.hasOutstandingPayment) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.orange),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.circle, size: 12, color: Colors.orange),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Ожидаю оплату по заказам: ${_money(data.outstandingAmount)}',
+                              style: const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
@@ -744,11 +767,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '${date.day}',
-              style: TextStyle(
-                fontWeight: _isToday(date) ? FontWeight.bold : FontWeight.w600,
-              ),
+            Row(
+              children: [
+                Text(
+                  '${date.day}',
+                  style: TextStyle(
+                    fontWeight: _isToday(date) ? FontWeight.bold : FontWeight.w600,
+                  ),
+                ),
+                if (data?.hasOutstandingPayment == true) ...[
+                  const SizedBox(width: 4),
+                  const Icon(Icons.circle, size: 9, color: Colors.orange),
+                ],
+              ],
             ),
             const Spacer(),
             FittedBox(
@@ -885,6 +916,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   _Legend(Icons.local_gas_station, 'Топливо'),
                   _Legend(Icons.receipt_long, 'Расходы'),
                   _Legend(Icons.speed, 'Пробег'),
+                  _Legend(Icons.circle, 'Ожидаю оплату', color: Colors.orange),
                 ],
               ),
             ),
@@ -897,17 +929,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
 }
 
 class _Legend extends StatelessWidget {
-  const _Legend(this.icon, this.label);
+  const _Legend(this.icon, this.label, {this.color});
 
   final IconData icon;
   final String label;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 17),
+        Icon(icon, size: 17, color: color),
         const SizedBox(width: 5),
         Text(label),
       ],

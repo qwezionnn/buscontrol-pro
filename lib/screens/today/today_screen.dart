@@ -6,6 +6,7 @@ import 'widgets/today_expenses_section.dart';
 import 'widgets/today_finish_day_section.dart';
 import 'widgets/today_fuel_section.dart';
 import 'widgets/today_orders_section.dart';
+import 'widgets/outstanding_orders_section.dart';
 import 'widgets/today_trips_section.dart';
 
 class TodayScreen extends StatefulWidget {
@@ -91,6 +92,10 @@ class _TodayScreenState extends State<TodayScreen> {
           const SizedBox(height: 16),
 
           const TodayOrdersSection(),
+
+          const SizedBox(height: 12),
+
+          const OutstandingOrdersSection(),
 
           const SizedBox(height: 12),
 

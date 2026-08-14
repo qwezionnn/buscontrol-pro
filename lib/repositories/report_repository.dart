@@ -54,6 +54,18 @@ class DayEvents {
   bool get hasFuel => fuelLogs.isNotEmpty;
   bool get hasExpenses => expenses.isNotEmpty;
   bool get hasMileage => distance != null;
+  bool get hasOutstandingPayment => orders.any((row) {
+    if (row['status'] != 'completed') return false;
+    final amount = (row['amount'] as num?)?.toDouble() ?? 0;
+    final paid = (row['paid_amount'] as num?)?.toDouble() ?? 0;
+    return paid + 0.01 < amount;
+  });
+  double get outstandingAmount => orders.fold<double>(0, (sum, row) {
+    if (row['status'] != 'completed') return sum;
+    final amount = (row['amount'] as num?)?.toDouble() ?? 0;
+    final paid = (row['paid_amount'] as num?)?.toDouble() ?? 0;
+    return sum + (amount > paid ? amount - paid : 0);
+  });
 }
 
 class ReportRepository {
