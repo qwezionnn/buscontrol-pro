@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/expense.dart';
 import '../../repositories/expense_repository.dart';
+import '../../repositories/part_bookmark_repository.dart';
 import '../../widgets/bus_card.dart';
 import '../expenses/add_expense_screen.dart';
 
@@ -130,6 +131,69 @@ class _BusExpensesScreenState extends State<BusExpensesScreen> {
     await _load();
   }
 
+  Future<void> _addToBookmarks(Expense expense) async {
+    final description = (expense.description ?? '').trim();
+    final initialName = description.isNotEmpty ? description : expense.category;
+
+    final name = TextEditingController(text: initialName);
+    final brand = TextEditingController();
+    final article = TextEditingController();
+    final shop = TextEditingController();
+    final price = TextEditingController(text: expense.amount.toStringAsFixed(
+      expense.amount == expense.amount.roundToDouble() ? 0 : 2,
+    ));
+    final url = TextEditingController();
+    final note = TextEditingController(
+      text: 'Добавлено из расхода ${_dateText(expense.date)}',
+    );
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Добавить в закладки'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: name, decoration: const InputDecoration(labelText: 'Название *')),
+              TextField(controller: brand, decoration: const InputDecoration(labelText: 'Бренд (необязательно)')),
+              TextField(controller: article, decoration: const InputDecoration(labelText: 'Артикул (необязательно)')),
+              TextField(controller: shop, decoration: const InputDecoration(labelText: 'Где покупал (необязательно)')),
+              TextField(controller: price, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Цена (необязательно)')),
+              TextField(controller: url, decoration: const InputDecoration(labelText: 'Ссылка (необязательно)')),
+              TextField(controller: note, maxLines: 3, decoration: const InputDecoration(labelText: 'Заметка (необязательно)')),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Сохранить')),
+        ],
+      ),
+    );
+
+    if (saved == true && name.text.trim().isNotEmpty) {
+      await PartBookmarkRepository.instance.save(
+        name: name.text,
+        brand: brand.text,
+        article: article.text,
+        shop: shop.text,
+        price: double.tryParse(price.text.replaceAll(',', '.')),
+        url: url.text,
+        note: note.text,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Запчасть добавлена в закладки')),
+        );
+      }
+    }
+
+    for (final controller in [name, brand, article, shop, price, url, note]) {
+      controller.dispose();
+    }
+  }
+
   Future<void> _showActions(Expense expense) async {
     final action = await showModalBottomSheet<String>(
       context: context,
@@ -142,6 +206,18 @@ class _BusExpensesScreenState extends State<BusExpensesScreen> {
               leading: const Icon(Icons.edit_outlined),
               title: const Text('Редактировать'),
               onTap: () => Navigator.pop(sheetContext, 'edit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.bookmark_add_outlined),
+              title: const Text('Добавить в закладки'),
+              subtitle: Text(
+                (expense.description ?? '').trim().isNotEmpty
+                    ? expense.description!.trim()
+                    : expense.category,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onTap: () => Navigator.pop(sheetContext, 'bookmark'),
             ),
             ListTile(
               leading: const Icon(
@@ -162,6 +238,8 @@ class _BusExpensesScreenState extends State<BusExpensesScreen> {
     if (!mounted) return;
     if (action == 'edit') {
       await _edit(expense);
+    } else if (action == 'bookmark') {
+      await _addToBookmarks(expense);
     } else if (action == 'delete') {
       await _delete(expense);
     }

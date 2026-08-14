@@ -35,7 +35,14 @@ class _RepairHistoryScreenState extends State<RepairHistoryScreen>{
           DropdownMenuItem(value:'manual',child:Text('Ввести вручную')),DropdownMenuItem(value:'expense',child:Text('Выбрать из расходов')),DropdownMenuItem(value:'bookmark',child:Text('Выбрать из закладок')),
         ],onChanged:(v)=>setD(()=>source=v!)),
         if(source=='manual')TextField(controller:part,decoration:const InputDecoration(labelText:'Наименование запчасти')),
-        if(source=='expense')DropdownButtonFormField<int>(value:expenseId,decoration:const InputDecoration(labelText:'Покупка из расходов'),items:expenses.map((e)=>DropdownMenuItem(value:e['id'] as int,child:Text('${e['date']} • ${e['category']} • ${e['amount']} ₽',overflow:TextOverflow.ellipsis))).toList(),onChanged:(v){final e=expenses.firstWhere((x)=>x['id']==v);setD((){expenseId=v;part.text=(e['description']??e['category']).toString();partCost.text=e['amount'].toString();});}),
+        if(source=='expense')DropdownButtonFormField<int>(value:expenseId,decoration:const InputDecoration(labelText:'Покупка из расходов'),items:expenses.map((e){
+          final description=(e['description']?.toString().trim()??'');
+          final label=description.isNotEmpty?description:e['category'].toString();
+          return DropdownMenuItem(
+            value:e['id'] as int,
+            child:Text('$label • ${e['date']} • ${e['amount']} ₽',overflow:TextOverflow.ellipsis),
+          );
+        }).toList(),onChanged:(v){final e=expenses.firstWhere((x)=>x['id']==v);setD((){expenseId=v;part.text=(e['description']??e['category']).toString();partCost.text=e['amount'].toString();});}),
         if(source=='bookmark')DropdownButtonFormField<int>(value:bookmarkId,decoration:const InputDecoration(labelText:'Из закладок'),items:bookmarks.map((e)=>DropdownMenuItem(value:e['id'] as int,child:Text(e['name'].toString()))).toList(),onChanged:(v){final e=bookmarks.firstWhere((x)=>x['id']==v);setD((){bookmarkId=v;part.text=e['name'].toString();if(e['price']!=null)partCost.text=e['price'].toString();});}),
         if(source!='expense')TextField(controller:partCost,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Стоимость запчасти (необязательно)')),
         SwitchListTile(contentPadding:EdgeInsets.zero,title:const Text('Ремонтировал самостоятельно'),value:selfRepair,onChanged:(v)=>setD(()=>selfRepair=v)),
