@@ -30,7 +30,9 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
   final _vehicleAmountController = TextEditingController();
 
   final _personalPercentController = TextEditingController();
+  final _reservePercentController = TextEditingController(text: '0');
   final _personalAmountController = TextEditingController();
+  final _reserveAmountController = TextEditingController(text: '0');
 
   final Map<String, TextEditingController> _creditPercentControllers = {};
   final Map<String, TextEditingController> _creditAmountControllers = {};
@@ -51,10 +53,12 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
   double get _vehicleAmount => _parse(_vehicleAmountController);
 
   double get _personalAmount => _parse(_personalAmountController);
+  double get _reserveAmount => _parse(_reserveAmountController);
 
   double get _allocatedAmount =>
       _vehicleAmount +
       _personalAmount +
+      _reserveAmount +
       _creditAmountControllers.values.fold<double>(
         0,
         (sum, controller) => sum + _parse(controller),
@@ -174,6 +178,8 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
       );
     }
 
+    _setControllerNumber(_reserveAmountController, amount * _parse(_reservePercentController) / 100);
+
     _setControllerNumber(
       _personalAmountController,
       amount * _parse(_personalPercentController) / 100,
@@ -236,6 +242,8 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
     _vehicleAmountController.dispose();
     _personalPercentController.dispose();
     _personalAmountController.dispose();
+    _reservePercentController.dispose();
+    _reserveAmountController.dispose();
 
     for (final controller in _creditPercentControllers.values) {
       controller.dispose();
@@ -268,6 +276,7 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
         amount: _paymentAmount,
         vehiclePercent: _percentForAmount(_vehicleAmount),
         personalPercent: _percentForAmount(_personalAmount),
+        reservePercent: _percentForAmount(_reserveAmount),
         creditPercents: _creditPercentsForSave(),
         note: _noteController.text.trim().isEmpty
             ? null
@@ -503,6 +512,13 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
                       ),
                       const SizedBox(height: 10),
                     ],
+                    _distributionField(
+                      title: 'Заначка',
+                      icon: Icons.savings_outlined,
+                      percentController: _reservePercentController,
+                      amountController: _reserveAmountController,
+                    ),
+                    const SizedBox(height: 10),
                     _distributionField(
                       title: 'Личные деньги',
                       icon: Icons.person_outline,

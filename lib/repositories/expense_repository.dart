@@ -41,6 +41,7 @@ class ExpenseRepository {
       category: expense.category,
       description: expense.description,
       amount: expense.amount,
+      paymentAccount: expense.paymentAccount,
     );
   }
 
@@ -79,6 +80,7 @@ class ExpenseRepository {
         'category': expense.category,
         'description': expense.description,
         'amount': expense.amount,
+        'payment_account': expense.paymentAccount,
       },
       where: 'id = ?',
       whereArgs: [id],

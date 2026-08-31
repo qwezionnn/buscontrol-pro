@@ -19,6 +19,8 @@ class FinancialSnapshot {
     required this.vehicleTransferNet,
     required this.creditTransferNet,
     required this.personalTransferNet,
+    required this.reserveFund,
+    required this.reserveTransferNet,
   });
 
   final double orderIncome;
@@ -38,6 +40,8 @@ class FinancialSnapshot {
   final double vehicleTransferNet;
   final double creditTransferNet;
   final double personalTransferNet;
+  final double reserveFund;
+  final double reserveTransferNet;
 
   double get allocatedCreditFund =>
       creditAllocations.values.fold<double>(0, (sum, value) => sum + value);
@@ -48,7 +52,10 @@ class FinancialSnapshot {
   double get vehicleCash =>
       vehicleFund - fuelCost - otherExpenses + vehicleTransferNet;
   double get creditCash => creditFund + creditTransferNet;
-  double get personalCash => personalFund + personalTransferNet;
+  /// Личные — не кошелёк, а статистика заработанного себе.
+  double get personalCash => personalFund;
+  double get reserveCash => reserveFund + reserveTransferNet;
+  double get reserveDebt => (reserveTransferNet < 0 ? -reserveTransferNet : 0);
 }
 
 class FinancialAssistantRepository {
@@ -88,6 +95,7 @@ class FinancialAssistantRepository {
     final creditAllocations = <String, double>{};
     var vehicleFund = 0.0;
     var personalFund = 0.0;
+    var reserveFund = 0.0;
 
     void addCreditAmount(String title, double amount) {
       if (amount.abs() <= 0.0001) return;
@@ -98,6 +106,7 @@ class FinancialAssistantRepository {
     void applyDefaultDistribution(double amount) {
       vehicleFund += amount * settings.workFundPercent / 100;
       personalFund += amount * settings.personalFundPercent / 100;
+      // Резерв можно пополнять переводом вручную; по умолчанию 0% старых выплат.
 
       if (activeCredits.isEmpty) {
         addCreditAmount(
@@ -140,6 +149,7 @@ class FinancialAssistantRepository {
           (payment['vehicle_percent'] as num?)?.toDouble();
       final personalPercent =
           (payment['personal_percent'] as num?)?.toDouble();
+      final reservePercent = (payment['reserve_percent'] as num?)?.toDouble() ?? 0;
       final rawCredits = payment['credit_distribution']?.toString();
 
       if (vehiclePercent == null ||
@@ -154,6 +164,7 @@ class FinancialAssistantRepository {
 
       vehicleFund += amount * vehiclePercent / 100;
       personalFund += amount * personalPercent / 100;
+      reserveFund += amount * reservePercent / 100;
 
       try {
         final decoded = jsonDecode(rawCredits);
@@ -191,9 +202,34 @@ class FinancialAssistantRepository {
     // Выплаты за обычные рейсы распределяются по общим настройкам.
     // Индивидуальное распределение применяется только к оплатам заказов.
     for (final payout in payouts) {
-      final amount =
-          (payout['gross_amount'] as num?)?.toDouble() ?? 0;
-      applyDefaultDistribution(amount);
+      final amount = (payout['gross_amount'] as num?)?.toDouble() ?? 0;
+      final vp = (payout['vehicle_percent'] as num?)?.toDouble();
+      final cp = (payout['credit_percent'] as num?)?.toDouble();
+      final pp = (payout['personal_percent'] as num?)?.toDouble();
+      final rp = (payout['reserve_percent'] as num?)?.toDouble();
+      if (vp == null || cp == null || pp == null || rp == null) {
+        applyDefaultDistribution(amount);
+      } else {
+        vehicleFund += amount * vp / 100;
+        personalFund += amount * pp / 100;
+        reserveFund += amount * rp / 100;
+        if (activeCredits.isEmpty) {
+          addCreditAmount('Кредит', amount * cp / 100);
+        } else {
+          final namedCreditPercent = activeCredits.fold<double>(
+            0, (sum, credit) => sum + credit.incomePercent,
+          );
+          for (final credit in activeCredits) {
+            final share = namedCreditPercent > 0
+                ? cp * credit.incomePercent / namedCreditPercent
+                : 0;
+            addCreditAmount(credit.title, amount * share / 100);
+          }
+          if (namedCreditPercent <= 0) {
+            addCreditAmount('Кредит', amount * cp / 100);
+          }
+        }
+      }
     }
 
     final homeFuelSettlements = expenses
@@ -202,13 +238,17 @@ class FinancialAssistantRepository {
           0,
           (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
         );
-    final fuelCost = fuel.fold<double>(
-          0,
-          (sum, row) => sum + ((row['total'] as num?)?.toDouble() ?? 0),
-        ) +
+    final fuelCost = fuel
+            .where((row) => (row['payment_account']?.toString() ?? 'vehicle') == 'vehicle')
+            .fold<double>(
+              0,
+              (sum, row) => sum + ((row['total'] as num?)?.toDouble() ?? 0),
+            ) +
         homeFuelSettlements;
     final otherExpenses = expenses
-        .where((row) => row['category']?.toString() != 'Домашнее топливо')
+        .where((row) =>
+            row['category']?.toString() != 'Домашнее топливо' &&
+            (row['payment_account']?.toString() ?? 'vehicle') == 'vehicle')
         .fold<double>(
           0,
           (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
@@ -217,6 +257,7 @@ class FinancialAssistantRepository {
     var vehicleTransferNet = 0.0;
     var creditTransferNet = 0.0;
     var personalTransferNet = 0.0;
+    var reserveTransferNet = 0.0;
 
     void applyTransfer(String account, double delta) {
       switch (account) {
@@ -228,6 +269,9 @@ class FinancialAssistantRepository {
           break;
         case 'personal':
           personalTransferNet += delta;
+          break;
+        case 'reserve':
+          reserveTransferNet += delta;
           break;
       }
     }
@@ -253,6 +297,8 @@ class FinancialAssistantRepository {
       vehicleFund: vehicleFund,
       creditFund: allocatedCredit,
       personalFund: personalFund,
+      reserveFund: reserveFund,
+      reserveTransferNet: reserveTransferNet,
       pendingTripPayout: (accruedTripIncome - receivedTripIncome)
           .clamp(0, double.infinity)
           .toDouble(),
@@ -280,7 +326,8 @@ class FinancialAssistantRepository {
     final available = switch (fromAccount) {
       'vehicle' => snapshot.vehicleCash,
       'credit' => snapshot.creditCash,
-      'personal' => snapshot.personalCash,
+      'personal' => double.infinity,
+      'reserve' => snapshot.reserveCash,
       _ => 0.0,
     };
 
@@ -310,6 +357,10 @@ class FinancialAssistantRepository {
   Future<void> receiveTripPayout({
     required DateTime month,
     required double amount,
+    double? vehiclePercent,
+    double? creditPercent,
+    double? personalPercent,
+    double? reservePercent,
     String? note,
   }) {
     final key =
@@ -317,6 +368,10 @@ class FinancialAssistantRepository {
     return _database.saveTripPayout(
       month: key,
       grossAmount: amount,
+      vehiclePercent: vehiclePercent,
+      creditPercent: creditPercent,
+      personalPercent: personalPercent,
+      reservePercent: reservePercent,
       note: note,
     );
   }

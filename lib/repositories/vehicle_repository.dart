@@ -40,6 +40,7 @@ class VehicleRepository extends ChangeNotifier {
       registrationNumber: vehicle.registrationNumber,
       note: vehicle.note,
       initialMileage: vehicle.initialMileage,
+      vehicleKind: vehicle.kind,
     );
     notifyListeners();
     return id;
@@ -56,6 +57,7 @@ class VehicleRepository extends ChangeNotifier {
       note: vehicle.note,
       initialMileage: vehicle.initialMileage,
       archived: vehicle.archived,
+      vehicleKind: vehicle.kind,
     );
     notifyListeners();
   }

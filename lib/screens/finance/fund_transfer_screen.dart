@@ -26,6 +26,7 @@ class _FundTransferScreenState extends State<FundTransferScreen> {
     'vehicle': 'Автобус',
     'credit': 'Кредиты',
     'personal': 'Личные',
+    'reserve': 'Заначка',
   };
 
   @override
@@ -58,7 +59,8 @@ class _FundTransferScreenState extends State<FundTransferScreen> {
     return switch (account) {
       'vehicle' => snapshot.vehicleCash,
       'credit' => snapshot.creditCash,
-      'personal' => snapshot.personalCash,
+      'personal' => 0,
+      'reserve' => snapshot.reserveCash,
       _ => 0,
     };
   }
@@ -142,7 +144,7 @@ class _FundTransferScreenState extends State<FundTransferScreen> {
             Text(_names[key]!, style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 3),
             Text(
-              _money(_balance(key)),
+              key == 'personal' ? 'Внешний источник' : _money(_balance(key)),
               style: const TextStyle(
                 fontSize: 19,
                 fontWeight: FontWeight.bold,
@@ -176,9 +178,28 @@ class _FundTransferScreenState extends State<FundTransferScreen> {
                   Row(
                     children: [
                       _accountCard('personal', Icons.person_outline),
-                      const Spacer(),
+                      const SizedBox(width: 8),
+                      _accountCard('reserve', Icons.savings_outlined),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  if ((_snapshot?.reserveDebt ?? 0) > 0)
+                    BusCard(
+                      backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                      child: Row(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Из заначки ранее использовано '
+                              '${_money(_snapshot?.reserveDebt ?? 0)}. '
+                              'Рекомендуется вернуть эту сумму после следующей выплаты.',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   const SizedBox(height: 16),
                   BusCard(
                     child: Column(

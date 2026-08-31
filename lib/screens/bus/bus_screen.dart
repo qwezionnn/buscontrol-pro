@@ -12,6 +12,7 @@ import 'maintenance_screen.dart';
 import 'bus_expenses_screen.dart';
 import 'part_bookmarks_screen.dart';
 import 'repair_history_screen.dart';
+import 'pro_tools_screen.dart';
 
 class BusScreen extends StatefulWidget {
   const BusScreen({super.key});
@@ -159,7 +160,8 @@ class _BusScreenState extends State<BusScreen> {
               'Статистика, обслуживание и касса',
               style: Theme.of(context).textTheme.bodyLarge,
             ),
-            const SizedBox(height: 20),
+            BusCard(onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProToolsScreen())), child: const ListTile(leading: Icon(Icons.dashboard_customize_outlined), title: Text('Центр 5.0'), subtitle: Text('Архив, поиск, планы, ТО и журнал личного автомобиля'), trailing: Icon(Icons.chevron_right))),
+            const SizedBox(height: 12),
             if (_loading)
               const Padding(
                 padding: EdgeInsets.all(40),

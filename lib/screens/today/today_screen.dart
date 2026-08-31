@@ -6,8 +6,10 @@ import 'widgets/today_expenses_section.dart';
 import 'widgets/today_finish_day_section.dart';
 import 'widgets/today_fuel_section.dart';
 import 'widgets/today_orders_section.dart';
+import 'widgets/today_credit_payment_section.dart';
 import 'widgets/outstanding_orders_section.dart';
 import 'widgets/today_trips_section.dart';
+import 'widgets/today_pro_section.dart';
 
 class TodayScreen extends StatefulWidget {
   const TodayScreen({super.key});
@@ -87,6 +89,10 @@ class _TodayScreenState extends State<TodayScreen> {
 
           const SizedBox(height: 24),
 
+          const TodayProSection(),
+
+          const SizedBox(height: 16),
+
           const TodayTripsSection(),
 
           const SizedBox(height: 16),
@@ -96,6 +102,10 @@ class _TodayScreenState extends State<TodayScreen> {
           const SizedBox(height: 12),
 
           const OutstandingOrdersSection(),
+
+          const SizedBox(height: 12),
+
+          const TodayCreditPaymentSection(),
 
           const SizedBox(height: 12),
 

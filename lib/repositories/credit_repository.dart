@@ -67,11 +67,13 @@ class CreditRepository extends ChangeNotifier {
   Future<void> addPayment({
     required int creditId,
     required double amount,
+    String? paymentMonth,
     String? note,
   }) async {
     await _database.addCreditPayment(
       creditId: creditId,
       amount: amount,
+      paymentMonth: paymentMonth,
       note: note,
     );
     notifyListeners();

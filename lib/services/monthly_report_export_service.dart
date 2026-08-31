@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/foundation.dart';
 
 import 'package:excel/excel.dart';
@@ -153,17 +151,6 @@ class MonthlyReportExportService {
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4.landscape,
         margin: const pw.EdgeInsets.all(28),
-        header: (context) => pw.Container(
-          alignment: pw.Alignment.centerRight,
-          margin: const pw.EdgeInsets.only(bottom: 12),
-          child: pw.Text(
-            'BusControl PRO',
-            style: pw.TextStyle(
-              fontWeight: pw.FontWeight.bold,
-              color: PdfColors.blueGrey700,
-            ),
-          ),
-        ),
         footer: (context) => pw.Container(
           alignment: pw.Alignment.centerRight,
           margin: const pw.EdgeInsets.only(top: 12),
@@ -177,7 +164,7 @@ class MonthlyReportExportService {
         ),
         build: (context) => [
           pw.Text(
-            'Отчёт за ${_monthTitle(month)}',
+            'Сводка — ${_monthTitle(month)}',
             style: pw.TextStyle(
               fontSize: 24,
               fontWeight: pw.FontWeight.bold,
@@ -425,7 +412,7 @@ class MonthlyReportExportService {
 
   Future<void> sharePdf(DateTime month) async {
     final bytes = await buildPdf(month);
-    final fileName = 'bus_control_${_fileMonth(month)}.pdf';
+    final fileName = 'Сводка_${_monthNames[month.month - 1]}_${month.year}.pdf';
 
     if (kIsWeb) {
       await downloadBytes(
@@ -455,11 +442,20 @@ class MonthlyReportExportService {
     final excel = Excel.createExcel();
 
     final summary = excel['Сводка'];
+    final morningCount = data.trips.where((row) => row['type'] == 'morning').length;
+    final eveningCount = data.trips.where((row) => row['type'] == 'evening').length;
+    final extraCount = data.trips.where((row) => row['type'] == 'extra').length;
+    summary.appendRow([TextCellValue('Сводка — ${_monthTitle(month)}')]);
+    summary.appendRow([TextCellValue('Утренние рейсы'), IntCellValue(morningCount)]);
+    summary.appendRow([TextCellValue('Вечерние рейсы'), IntCellValue(eveningCount)]);
+    summary.appendRow([TextCellValue('Утро + вечер'), IntCellValue(morningCount + eveningCount)]);
+    summary.appendRow([TextCellValue('Дополнительные рейсы'), IntCellValue(extraCount)]);
+    summary.appendRow([TextCellValue('Всего рейсов'), IntCellValue(data.trips.length)]);
     excel.setDefaultSheet('Сводка');
 
     summary.appendRow([
       TextCellValue('BusControl PRO'),
-      TextCellValue('Отчёт за ${_monthTitle(month)}'),
+      TextCellValue('Сводка — ${_monthTitle(month)}'),
     ]);
     summary.appendRow([
       TextCellValue('Показатель'),
@@ -653,7 +649,7 @@ class MonthlyReportExportService {
 
   Future<void> shareExcel(DateTime month) async {
     final bytes = await buildExcel(month);
-    final fileName = 'bus_control_${_fileMonth(month)}.xlsx';
+    final fileName = 'Сводка_${_monthNames[month.month - 1]}_${month.year}.xlsx';
     const mimeType =
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -673,8 +669,6 @@ class MonthlyReportExportService {
           mimeType: mimeType,
         ),
       ],
-      subject: 'BusControl PRO - ${_monthTitle(month)}',
-      text: 'Отчёт BusControl PRO за ${_monthTitle(month)}',
       fileNameOverrides: [fileName],
     );
   }

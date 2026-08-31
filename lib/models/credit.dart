@@ -55,6 +55,7 @@ class CreditPayment {
     required this.creditId,
     required this.amount,
     required this.paidAt,
+    this.paymentMonth,
     this.note,
   });
 
@@ -62,6 +63,7 @@ class CreditPayment {
   final int creditId;
   final double amount;
   final DateTime paidAt;
+  final String? paymentMonth;
   final String? note;
 
   factory CreditPayment.fromMap(Map<String, Object?> map) {
@@ -70,6 +72,7 @@ class CreditPayment {
       creditId: (map['credit_id'] as num).toInt(),
       amount: (map['amount'] as num).toDouble(),
       paidAt: DateTime.parse(map['paid_at'].toString()),
+      paymentMonth: map['payment_month']?.toString(),
       note: map['note']?.toString(),
     );
   }

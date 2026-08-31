@@ -45,6 +45,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
       text: vehicle?.initialMileage?.toString() ?? '',
     );
     final note = TextEditingController(text: vehicle?.note ?? '');
+    var kind = vehicle?.kind ?? 'commercial';
 
     final saved = await showAdaptiveDialog<bool>(
       context: context,
@@ -54,6 +55,12 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              StatefulBuilder(builder: (context, setLocal) => DropdownButtonFormField<String>(
+                initialValue: kind,
+                decoration: const InputDecoration(labelText: 'Тип транспорта'),
+                items: const [DropdownMenuItem(value: 'commercial', child: Text('🚌 Коммерческий автобус')), DropdownMenuItem(value: 'personal', child: Text('🚗 Личный автомобиль'))],
+                onChanged: (value) => setLocal(() => kind = value ?? 'commercial'),
+              )),
               TextField(
                 controller: name,
                 decoration: const InputDecoration(
@@ -110,6 +117,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
         initialMileage: int.tryParse(mileage.text.trim()),
         note: note.text.trim().isEmpty ? null : note.text.trim(),
         archived: vehicle?.archived ?? false,
+        kind: kind,
       );
       if (vehicle == null) {
         final id = await _repository.addVehicle(value);
@@ -196,9 +204,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                     enabled: !vehicle.archived,
                     leading: CircleAvatar(
                       child: Icon(
-                        active
-                            ? Icons.directions_bus
-                            : Icons.directions_bus_outlined,
+                        vehicle.isPersonal ? Icons.directions_car : (active ? Icons.directions_bus : Icons.directions_bus_outlined),
                       ),
                     ),
                     title: Text(vehicle.displayName),

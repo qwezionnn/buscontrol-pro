@@ -60,6 +60,7 @@ class _PartBookmarksScreenState extends State<PartBookmarksScreen> {
         const Icon(Icons.bookmark_outline),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Text(x['name'].toString(),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:16)),
           if(x['brand']!=null||x['article']!=null)Text([if(x['brand']!=null)x['brand'],if(x['article']!=null)x['article']].join(' • ')),
+          if(x['price']!=null)Text('Последняя цена: ${((x['price'] as num).toDouble()).toStringAsFixed(0)} ₽'),
           if(x['note']!=null)Text(x['note'].toString(),maxLines:2,overflow:TextOverflow.ellipsis),
         ])),IconButton(onPressed:()=>_delete(x),icon:const Icon(Icons.delete_outline))
       ]))),

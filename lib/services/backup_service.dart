@@ -32,12 +32,26 @@ class BackupService extends ChangeNotifier {
     'order_payments',
     'credit_payments',
     'fund_transfers',
+    'part_bookmarks',
+    'repairs',
+    'notes',
+    'planned_expenses',
+    'service_plans',
+    'personal_vehicle_events',
+    'money_obligations',
     'settings',
   ];
 
   static const _deleteOrder = <String>[
     'order_payments',
     'fund_transfers',
+    'part_bookmarks',
+    'repairs',
+    'notes',
+    'planned_expenses',
+    'service_plans',
+    'personal_vehicle_events',
+    'money_obligations',
     'credit_payments',
     'daily_logs',
     'trips',
@@ -64,6 +78,13 @@ class BackupService extends ChangeNotifier {
     'order_payments',
     'credit_payments',
     'fund_transfers',
+    'part_bookmarks',
+    'repairs',
+    'notes',
+    'planned_expenses',
+    'service_plans',
+    'personal_vehicle_events',
+    'money_obligations',
     'settings',
   ];
 
@@ -154,6 +175,12 @@ class BackupService extends ChangeNotifier {
     }
 
     final db = await _database.database;
+
+    // Защитный локальный снимок перед любым восстановлением.
+    final safetyTables = <String, List<Map<String, Object?>>>{};
+    for (final table in _tables) { safetyTables[table] = await db.query(table); }
+    await db.insert('safety_backups', {'created_at': DateTime.now().toIso8601String(), 'payload': jsonEncode({'format': _format, 'formatVersion': _formatVersion, 'tables': safetyTables})});
+    await db.rawDelete('DELETE FROM safety_backups WHERE id NOT IN (SELECT id FROM safety_backups ORDER BY id DESC LIMIT 3)');
 
     await db.transaction((transaction) async {
       for (final table in _deleteOrder) {

@@ -33,6 +33,7 @@ class _AddFuelScreenState extends State<AddFuelScreen> {
   TimeOfDay _selectedTime = TimeOfDay.now();
   FuelSource _source = FuelSource.station;
   StationInputMode _stationMode = StationInputMode.liters;
+  String _paymentAccount = 'vehicle';
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -162,6 +163,7 @@ class _AddFuelScreenState extends State<AddFuelScreen> {
             _source == FuelSource.home ? 0 : _pricePerLiter,
         total: _calculatedTotal,
         source: _source == FuelSource.home ? 'home' : 'station',
+        paymentAccount: _paymentAccount,
         mileage: mileage,
         note: _noteController.text.trim().isEmpty
             ? null
@@ -354,6 +356,22 @@ class _AddFuelScreenState extends State<AddFuelScreen> {
                     ],
 
                     const SizedBox(height: 16),
+                    if (!isHome)
+                      DropdownButtonFormField<String>(
+                        initialValue: _paymentAccount,
+                        decoration: const InputDecoration(
+                          labelText: 'Оплатить с',
+                          prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'vehicle', child: Text('Автобус')),
+                          DropdownMenuItem(value: 'reserve', child: Text('Заначка')),
+                          DropdownMenuItem(value: 'personal', child: Text('Личные')),
+                        ],
+                        onChanged: (value) => setState(() => _paymentAccount = value ?? 'vehicle'),
+                      ),
+                    if (!isHome) const SizedBox(height: 16),
                     TextFormField(
                       controller: _mileageController,
                       keyboardType: TextInputType.number,

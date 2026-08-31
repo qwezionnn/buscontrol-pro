@@ -41,7 +41,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 12,
+      version: 14,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -79,9 +79,20 @@ class DatabaseHelper {
     if (oldVersion < 12) {
       await _upgradeToVersion12(db);
     }
+    if (oldVersion < 13) {
+      await _upgradeToVersion13(db);
+    }
+    if (oldVersion < 14) {
+      await _upgradeToVersion14(db);
+    }
     await _createTables(db);
     await _insertDefaultSettings(db);
     await _ensureDefaultVehicle(db);
+  }
+
+  Future<bool> _hasColumn(Database db, String table, String column) async {
+    final rows = await db.rawQuery('PRAGMA table_info($table)');
+    return rows.any((row) => row['name'] == column);
   }
 
   Future<void> _createTables(Database db) async {
@@ -138,6 +149,7 @@ class DatabaseHelper {
         note TEXT,
         vehicle_percent REAL,
         personal_percent REAL,
+        reserve_percent REAL NOT NULL DEFAULT 0,
         credit_distribution TEXT,
         FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
       )
@@ -153,6 +165,7 @@ class DatabaseHelper {
         price_per_liter REAL NOT NULL,
         total REAL NOT NULL,
         source TEXT NOT NULL DEFAULT 'station',
+        payment_account TEXT NOT NULL DEFAULT 'vehicle',
         mileage INTEGER,
         note TEXT
       )
@@ -166,7 +179,8 @@ class DatabaseHelper {
         time TEXT,
         category TEXT NOT NULL,
         description TEXT,
-        amount REAL NOT NULL
+        amount REAL NOT NULL,
+        payment_account TEXT NOT NULL DEFAULT 'vehicle'
       )
     ''');
 
@@ -192,6 +206,10 @@ class DatabaseHelper {
         month TEXT NOT NULL,
         gross_amount REAL NOT NULL,
         received_at TEXT NOT NULL,
+        vehicle_percent REAL,
+        credit_percent REAL,
+        personal_percent REAL,
+        reserve_percent REAL,
         note TEXT,
         UNIQUE(vehicle_id, month)
       )
@@ -206,6 +224,7 @@ class DatabaseHelper {
         note TEXT,
         initial_mileage INTEGER,
         archived INTEGER NOT NULL DEFAULT 0,
+        vehicle_kind TEXT NOT NULL DEFAULT 'commercial',
         created_at TEXT NOT NULL
       )
     ''');
@@ -232,6 +251,7 @@ class DatabaseHelper {
         credit_id INTEGER NOT NULL,
         amount REAL NOT NULL,
         paid_at TEXT NOT NULL,
+        payment_month TEXT,
         note TEXT,
         FOREIGN KEY(credit_id) REFERENCES credits(id) ON DELETE CASCADE
       )
@@ -245,8 +265,91 @@ class DatabaseHelper {
         to_account TEXT NOT NULL,
         amount REAL NOT NULL,
         transferred_at TEXT NOT NULL,
-        note TEXT
+        note TEXT,
+        purpose TEXT
       )
+    ''');
+    if (!await _hasColumn(db, 'fuel_logs', 'payment_account')) {
+      await db.execute("ALTER TABLE fuel_logs ADD COLUMN payment_account TEXT NOT NULL DEFAULT 'vehicle'");
+    }
+    if (!await _hasColumn(db, 'expenses', 'payment_account')) {
+      await db.execute("ALTER TABLE expenses ADD COLUMN payment_account TEXT NOT NULL DEFAULT 'vehicle'");
+    }
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS notes(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vehicle_id INTEGER NOT NULL DEFAULT 1,
+        title TEXT NOT NULL,
+        body TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS planned_expenses(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vehicle_id INTEGER NOT NULL DEFAULT 1,
+        title TEXT NOT NULL,
+        amount REAL NOT NULL DEFAULT 0,
+        due_date TEXT,
+        note TEXT,
+        completed INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS service_plans(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vehicle_id INTEGER NOT NULL DEFAULT 1,
+        title TEXT NOT NULL,
+        last_date TEXT,
+        last_mileage INTEGER,
+        next_date TEXT,
+        next_mileage INTEGER,
+        first_notice_days INTEGER NOT NULL DEFAULT 7,
+        second_notice_days INTEGER NOT NULL DEFAULT 1,
+        first_notice_km INTEGER NOT NULL DEFAULT 1000,
+        second_notice_km INTEGER NOT NULL DEFAULT 200,
+        note TEXT,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS personal_vehicle_events(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vehicle_id INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        mileage INTEGER,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        amount REAL NOT NULL DEFAULT 0,
+        brand TEXT,
+        article TEXT,
+        note TEXT,
+        favorite INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS money_obligations(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vehicle_id INTEGER NOT NULL DEFAULT 1,
+        kind TEXT NOT NULL,
+        amount REAL NOT NULL,
+        remaining REAL NOT NULL,
+        created_at TEXT NOT NULL,
+        note TEXT,
+        closed INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS safety_backups(id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL, payload TEXT NOT NULL)
     ''');
 
     await db.execute('''
@@ -545,9 +648,71 @@ class DatabaseHelper {
         to_account TEXT NOT NULL,
         amount REAL NOT NULL,
         transferred_at TEXT NOT NULL,
-        note TEXT
+        note TEXT,
+        purpose TEXT
       )
     ''');
+    if (!await _hasColumn(db, 'fuel_logs', 'payment_account')) {
+      await db.execute("ALTER TABLE fuel_logs ADD COLUMN payment_account TEXT NOT NULL DEFAULT 'vehicle'");
+    }
+    if (!await _hasColumn(db, 'expenses', 'payment_account')) {
+      await db.execute("ALTER TABLE expenses ADD COLUMN payment_account TEXT NOT NULL DEFAULT 'vehicle'");
+    }
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS notes(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vehicle_id INTEGER NOT NULL DEFAULT 1,
+        title TEXT NOT NULL,
+        body TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _upgradeToVersion13(Database db) async {
+    Future<bool> hasColumn(String table, String column) async {
+      final rows = await db.rawQuery('PRAGMA table_info($table)');
+      return rows.any((row) => row['name'] == column);
+    }
+
+    if (!await hasColumn('credit_payments', 'payment_month')) {
+      await db.execute('ALTER TABLE credit_payments ADD COLUMN payment_month TEXT');
+    }
+    for (final column in ['vehicle_percent', 'credit_percent', 'personal_percent', 'reserve_percent']) {
+      if (!await hasColumn('trip_payouts', column)) {
+        await db.execute('ALTER TABLE trip_payouts ADD COLUMN $column REAL');
+      }
+    }
+    if (!await hasColumn('fuel_logs', 'payment_account')) {
+      await db.execute("ALTER TABLE fuel_logs ADD COLUMN payment_account TEXT NOT NULL DEFAULT 'vehicle'");
+    }
+    if (!await hasColumn('expenses', 'payment_account')) {
+      await db.execute("ALTER TABLE expenses ADD COLUMN payment_account TEXT NOT NULL DEFAULT 'vehicle'");
+    }
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS notes(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vehicle_id INTEGER NOT NULL DEFAULT 1,
+        title TEXT NOT NULL,
+        body TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _upgradeToVersion14(Database db) async {
+    if (!await _hasColumn(db, 'vehicles', 'vehicle_kind')) {
+      await db.execute("ALTER TABLE vehicles ADD COLUMN vehicle_kind TEXT NOT NULL DEFAULT 'commercial'");
+    }
+    if (!await _hasColumn(db, 'order_payments', 'reserve_percent')) {
+      await db.execute('ALTER TABLE order_payments ADD COLUMN reserve_percent REAL NOT NULL DEFAULT 0');
+    }
+    if (!await _hasColumn(db, 'fund_transfers', 'purpose')) {
+      await db.execute('ALTER TABLE fund_transfers ADD COLUMN purpose TEXT');
+    }
+    await _createTables(db);
   }
 
   Future<int> getActiveVehicleId() async {
@@ -586,6 +751,7 @@ class DatabaseHelper {
     String? registrationNumber,
     String? note,
     int? initialMileage,
+    String vehicleKind = 'commercial',
   }) async {
     final db = await database;
     return db.insert('vehicles', {
@@ -594,6 +760,7 @@ class DatabaseHelper {
       'note': note?.trim(),
       'initial_mileage': initialMileage,
       'archived': 0,
+      'vehicle_kind': vehicleKind,
       'created_at': DateTime.now().toIso8601String(),
     });
   }
@@ -605,6 +772,7 @@ class DatabaseHelper {
     String? note,
     int? initialMileage,
     bool archived = false,
+    String vehicleKind = 'commercial',
   }) async {
     final db = await database;
     await db.update(
@@ -615,6 +783,7 @@ class DatabaseHelper {
         'note': note?.trim(),
         'initial_mileage': initialMileage,
         'archived': archived ? 1 : 0,
+        'vehicle_kind': vehicleKind,
       },
       where: 'id = ?',
       whereArgs: [id],
@@ -695,6 +864,7 @@ class DatabaseHelper {
         'maintenance_items',
         'trip_payouts',
         'credits',
+        'notes',
       ]) {
         await transaction.delete(
           table,
@@ -821,6 +991,7 @@ class DatabaseHelper {
   Future<int> addCreditPayment({
     required int creditId,
     required double amount,
+    String? paymentMonth,
     String? note,
   }) async {
     if (amount <= 0) {
@@ -843,6 +1014,7 @@ class DatabaseHelper {
         'credit_id': creditId,
         'amount': payment,
         'paid_at': DateTime.now().toIso8601String(),
+        'payment_month': paymentMonth,
         'note': note?.trim(),
       });
       await transaction.update(
@@ -1175,6 +1347,7 @@ class DatabaseHelper {
     required double amount,
     required double vehiclePercent,
     required double personalPercent,
+    double reservePercent = 0,
     required Map<String, double> creditPercents,
     String? note,
   }) async {
@@ -1183,7 +1356,7 @@ class DatabaseHelper {
     }
 
     final totalPercent = vehiclePercent +
-        personalPercent +
+        personalPercent + reservePercent +
         creditPercents.values.fold<double>(0, (sum, value) => sum + value);
     if ((totalPercent - 100).abs() > 0.01) {
       throw ArgumentError(
@@ -1228,6 +1401,7 @@ class DatabaseHelper {
         'note': note,
         'vehicle_percent': vehiclePercent,
         'personal_percent': personalPercent,
+        'reserve_percent': reservePercent,
         'credit_distribution': jsonEncode(creditPercents),
       });
 
@@ -1298,6 +1472,7 @@ class DatabaseHelper {
     required double liters,
     required double pricePerLiter,
     String source = 'station',
+    String paymentAccount = 'vehicle',
     int? mileage,
     String? note,
   }) async {
@@ -1307,7 +1482,7 @@ class DatabaseHelper {
     final total = normalizedSource == 'home'
         ? 0.0
         : liters * pricePerLiter;
-    return db.insert('fuel_logs', {
+    final id = await db.insert('fuel_logs', {
       'vehicle_id': vehicleId,
       'date': date,
       'time': time,
@@ -1316,9 +1491,14 @@ class DatabaseHelper {
           normalizedSource == 'home' ? 0.0 : pricePerLiter,
       'total': total,
       'source': normalizedSource,
+      'payment_account': paymentAccount,
       'mileage': mileage,
       'note': note,
     });
+    if (total > 0 && (paymentAccount == 'personal' || paymentAccount == 'reserve')) {
+      await db.insert('money_obligations', {'vehicle_id': vehicleId, 'kind': paymentAccount == 'personal' ? 'personal_reimbursement' : 'reserve_restore', 'amount': total, 'remaining': total, 'created_at': DateTime.now().toIso8601String(), 'note': 'Топливо', 'closed': 0});
+    }
+    return id;
   }
 
   Future<List<Map<String, Object?>>> getFuelLogsByDate(String date) async {
@@ -1357,17 +1537,23 @@ class DatabaseHelper {
     required String category,
     String? description,
     required double amount,
+    String paymentAccount = 'vehicle',
   }) async {
     final db = await database;
     final vehicleId = await getActiveVehicleId();
-    return db.insert('expenses', {
+    final id = await db.insert('expenses', {
       'vehicle_id': vehicleId,
       'date': date,
       'time': time,
       'category': category,
       'description': description,
       'amount': amount,
+      'payment_account': paymentAccount,
     });
+    if (amount > 0 && (paymentAccount == 'personal' || paymentAccount == 'reserve')) {
+      await db.insert('money_obligations', {'vehicle_id': vehicleId, 'kind': paymentAccount == 'personal' ? 'personal_reimbursement' : 'reserve_restore', 'amount': amount, 'remaining': amount, 'created_at': DateTime.now().toIso8601String(), 'note': description ?? category, 'closed': 0});
+    }
+    return id;
   }
 
   Future<List<Map<String, Object?>>> getExpensesByDate(String date) async {
@@ -1481,6 +1667,10 @@ class DatabaseHelper {
   Future<void> saveTripPayout({
     required String month,
     required double grossAmount,
+    double? vehiclePercent,
+    double? creditPercent,
+    double? personalPercent,
+    double? reservePercent,
     String? note,
   }) async {
     final db = await database;
@@ -1492,6 +1682,10 @@ class DatabaseHelper {
         'month': month,
         'gross_amount': grossAmount,
         'received_at': DateTime.now().toIso8601String(),
+        'vehicle_percent': vehiclePercent,
+        'credit_percent': creditPercent,
+        'personal_percent': personalPercent,
+        'reserve_percent': reservePercent,
         'note': note,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
@@ -1529,6 +1723,31 @@ class DatabaseHelper {
       where: 'vehicle_id = ? AND month = ?',
       whereArgs: [vehicleId, month],
     );
+  }
+
+  Future<List<Map<String, Object?>>> getNotes() async {
+    final db = await database;
+    final vehicleId = await getActiveVehicleId();
+    return db.query('notes', where: 'vehicle_id = ?', whereArgs: [vehicleId],
+      orderBy: 'updated_at DESC, id DESC');
+  }
+
+  Future<int> saveNote({int? id, required String title, String? body}) async {
+    final db = await database;
+    final vehicleId = await getActiveVehicleId();
+    final now = DateTime.now().toIso8601String();
+    if (id == null) {
+      return db.insert('notes', {'vehicle_id': vehicleId, 'title': title.trim(),
+        'body': body?.trim(), 'created_at': now, 'updated_at': now});
+    }
+    await db.update('notes', {'title': title.trim(), 'body': body?.trim(),
+      'updated_at': now}, where: 'id = ?', whereArgs: [id]);
+    return id;
+  }
+
+  Future<void> deleteNote(int id) async {
+    final db = await database;
+    await db.delete('notes', where: 'id = ?', whereArgs: [id]);
   }
 
   Future<String> getDatabaseFilePath() async {
@@ -1729,11 +1948,54 @@ class DatabaseHelper {
     'credits',
     'credit_payments',
     'fund_transfers',
+    'part_bookmarks',
+    'repairs',
+    'notes',
+    'planned_expenses',
+    'service_plans',
+    'personal_vehicle_events',
+    'money_obligations',
   ];
 
   /// Создаёт переносимый снимок всей локальной рабочей базы.
   /// Служебные ключи синхронизации не включаются в снимок,
   /// чтобы они не вызывали бесконечную повторную загрузку.
+  Future<int> addPlannedExpense({required String title, required double amount, String? dueDate, String? note}) async {
+    final db = await database;
+    return db.insert('planned_expenses', {'vehicle_id': await getActiveVehicleId(), 'title': title.trim(), 'amount': amount, 'due_date': dueDate, 'note': note, 'completed': 0, 'created_at': DateTime.now().toIso8601String()});
+  }
+
+  Future<List<Map<String, Object?>>> getPlannedExpenses({bool includeCompleted = false}) async {
+    final db = await database;
+    return db.query('planned_expenses', where: includeCompleted ? 'vehicle_id = ?' : 'vehicle_id = ? AND completed = 0', whereArgs: [await getActiveVehicleId()], orderBy: 'completed ASC, due_date ASC, id DESC');
+  }
+
+  Future<void> setPlannedExpenseCompleted(int id, bool value) async { final db = await database; await db.update('planned_expenses', {'completed': value ? 1 : 0}, where: 'id = ?', whereArgs: [id]); }
+  Future<void> deletePlannedExpense(int id) async { final db = await database; await db.delete('planned_expenses', where: 'id = ?', whereArgs: [id]); }
+
+  Future<int> addServicePlan(Map<String, Object?> values) async { final db = await database; return db.insert('service_plans', {...values, 'vehicle_id': await getActiveVehicleId(), 'created_at': DateTime.now().toIso8601String()}); }
+  Future<List<Map<String, Object?>>> getServicePlans() async { final db = await database; return db.query('service_plans', where: 'vehicle_id = ?', whereArgs: [await getActiveVehicleId()], orderBy: 'next_date ASC, next_mileage ASC'); }
+  Future<void> deleteServicePlan(int id) async { final db = await database; await db.delete('service_plans', where: 'id = ?', whereArgs: [id]); }
+
+  Future<int> addPersonalVehicleEvent(Map<String, Object?> values) async { final db = await database; return db.insert('personal_vehicle_events', {...values, 'vehicle_id': await getActiveVehicleId(), 'created_at': DateTime.now().toIso8601String()}); }
+  Future<List<Map<String, Object?>>> getPersonalVehicleEvents() async { final db = await database; return db.query('personal_vehicle_events', where: 'vehicle_id = ?', whereArgs: [await getActiveVehicleId()], orderBy: 'date DESC, id DESC'); }
+  Future<void> deletePersonalVehicleEvent(int id) async { final db = await database; await db.delete('personal_vehicle_events', where: 'id = ?', whereArgs: [id]); }
+
+  Future<int> addMoneyObligation({required String kind, required double amount, String? note}) async { final db = await database; return db.insert('money_obligations', {'vehicle_id': await getActiveVehicleId(), 'kind': kind, 'amount': amount, 'remaining': amount, 'created_at': DateTime.now().toIso8601String(), 'note': note, 'closed': 0}); }
+  Future<List<Map<String, Object?>>> getMoneyObligations({String? kind}) async { final db = await database; final id=await getActiveVehicleId(); return db.query('money_obligations', where: kind == null ? 'vehicle_id = ? AND closed = 0' : 'vehicle_id = ? AND kind = ? AND closed = 0', whereArgs: kind == null ? [id] : [id, kind], orderBy: 'created_at DESC'); }
+  Future<void> repayMoneyObligation(int id, double amount) async { final db=await database; final rows=await db.query('money_obligations',where:'id = ?',whereArgs:[id],limit:1); if(rows.isEmpty)return; final r=(rows.first['remaining'] as num).toDouble(); final next=(r-amount).clamp(0,double.infinity).toDouble(); await db.update('money_obligations',{'remaining':next,'closed':next<=0.005?1:0},where:'id = ?',whereArgs:[id]); }
+
+  Future<List<Map<String, Object?>>> searchHistory(String query) async {
+    final db = await database; final id = await getActiveVehicleId(); final q='%${query.trim()}%'; final out=<Map<String,Object?>>[];
+    Future<void> add(String table, String type, String fields) async { final rows=await db.rawQuery("SELECT *, '$type' AS history_type FROM $table WHERE vehicle_id = ? AND ($fields) ORDER BY id DESC LIMIT 50", [id,q,q,q]); out.addAll(rows); }
+    await add('expenses','Расход','description LIKE ? OR category LIKE ? OR COALESCE(payment_account,\'\') LIKE ?');
+    await add('orders','Заказ','title LIKE ? OR COALESCE(note,\'\') LIKE ? OR status LIKE ?');
+    await add('repairs','Ремонт','title LIKE ? OR COALESCE(part_name,\'\') LIKE ? OR COALESCE(note,\'\') LIKE ?');
+    await add('part_bookmarks','Запчасть','name LIKE ? OR COALESCE(brand,\'\') LIKE ? OR COALESCE(article,\'\') LIKE ?');
+    await add('personal_vehicle_events','Личное ТС','title LIKE ? OR COALESCE(brand,\'\') LIKE ? OR COALESCE(article,\'\') LIKE ?');
+    return out;
+  }
+
   Future<Map<String, dynamic>> exportCloudSnapshot() async {
     final db = await database;
     final tables = <String, dynamic>{};
@@ -1752,7 +2014,7 @@ class DatabaseHelper {
 
     return <String, dynamic>{
       'format': 1,
-      'database_version': 11,
+      'database_version': 14,
       'exported_at': DateTime.now().toUtc().toIso8601String(),
       'tables': tables,
     };
@@ -1774,6 +2036,9 @@ class DatabaseHelper {
       for (final table in <String>[
         'order_payments',
         'fund_transfers',
+        'part_bookmarks',
+        'repairs',
+        'notes',
         'credit_payments',
         'daily_logs',
         'trips',
@@ -1828,6 +2093,9 @@ class DatabaseHelper {
       await transaction.delete('trip_payouts');
       await transaction.delete('credit_payments');
       await transaction.delete('credits');
+      await transaction.delete('part_bookmarks');
+      await transaction.delete('repairs');
+      await transaction.delete('notes');
       await transaction.delete('vehicles');
       await transaction.delete('settings');
 

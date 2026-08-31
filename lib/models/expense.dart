@@ -6,6 +6,7 @@ class Expense {
     required this.category,
     this.description,
     required this.amount,
+    this.paymentAccount = 'vehicle',
   });
 
   final int? id;
@@ -25,6 +26,7 @@ class Expense {
 
   /// Сумма расхода.
   final double amount;
+  final String paymentAccount;
 
   Expense copyWith({
     int? id,
@@ -52,6 +54,7 @@ class Expense {
       'category': category,
       'description': description,
       'amount': amount,
+      'payment_account': paymentAccount,
     };
   }
 
@@ -63,6 +66,7 @@ class Expense {
       category: map['category']?.toString() ?? '',
       description: map['description']?.toString(),
       amount: (map['amount'] as num?)?.toDouble() ?? 0,
+      paymentAccount: map['payment_account']?.toString() ?? 'vehicle',
     );
   }
 

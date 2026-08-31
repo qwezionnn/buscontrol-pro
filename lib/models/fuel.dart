@@ -7,6 +7,7 @@ class FuelLog {
     required this.pricePerLiter,
     required this.total,
     this.source = 'station',
+    this.paymentAccount = 'vehicle',
     this.mileage,
     this.note,
   });
@@ -30,6 +31,7 @@ class FuelLog {
 
   /// station — АЗС, home — домашняя заправка.
   final String source;
+  final String paymentAccount;
 
   /// Пробег в момент заправки.
   final int? mileage;
@@ -72,6 +74,7 @@ class FuelLog {
       'price_per_liter': pricePerLiter,
       'total': total,
       'source': source,
+      'payment_account': paymentAccount,
       'mileage': mileage,
       'note': note,
     };
@@ -87,6 +90,7 @@ class FuelLog {
           (map['price_per_liter'] as num?)?.toDouble() ?? 0,
       total: (map['total'] as num?)?.toDouble() ?? 0,
       source: map['source']?.toString() ?? 'station',
+      paymentAccount: map['payment_account']?.toString() ?? 'vehicle',
       mileage: (map['mileage'] as num?)?.toInt(),
       note: map['note']?.toString(),
     );

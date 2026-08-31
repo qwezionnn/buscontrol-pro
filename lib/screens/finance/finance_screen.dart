@@ -11,6 +11,7 @@ import 'finance_detail_screen.dart';
 import 'credits_screen.dart';
 import 'distribution_calculator_screen.dart';
 import 'fund_transfer_screen.dart';
+import 'notes_screen.dart';
 
 class FinanceScreen extends StatefulWidget {
   const FinanceScreen({super.key});
@@ -108,49 +109,78 @@ class _FinanceScreenState extends State<FinanceScreen> {
     final report = _report;
     if (report == null || report.tripIncome <= 0) return;
 
-    final controller =
-        TextEditingController(text: report.tripIncome.toStringAsFixed(0));
-    final amount = await showAdaptiveDialog<double>(
+    final amount = TextEditingController(text: report.tripIncome.toStringAsFixed(0));
+    final vehicle = TextEditingController(text: '30');
+    final credit = TextEditingController(text: '35');
+    final personal = TextEditingController(text: '25');
+    final reserve = TextEditingController(text: '10');
+    var amountMode = false;
+
+    final result = await showDialog<Map<String, double>>(
       context: context,
-      builder: (context) => AlertDialog.adaptive(
-        title: const Text('Получена выплата за рейсы'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'До подтверждения доход от рейсов считается начисленным, '
-              'но не доступным для распределения.',
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: controller,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: 'Полученная сумма',
-                suffixText: '₽',
+      builder: (context) => AlertDialog(
+        title: const Text('Получена выплата предприятия'),
+        content: StatefulBuilder(
+          builder: (context, setLocal) {
+            double value(TextEditingController c) =>
+                double.tryParse(c.text.replaceAll(',', '.')) ?? 0;
+            final total = value(vehicle) + value(credit) + value(personal) + value(reserve);
+            final payoutAmount = value(amount);
+            final valid = amountMode ? (total - payoutAmount).abs() <= 0.01 : (total - 100).abs() <= 0.01;
+            return SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SegmentedButton<bool>(segments: const [ButtonSegment(value:false,label:Text('% Проценты')),ButtonSegment(value:true,label:Text('₽ Суммы'))], selected:{amountMode}, onSelectionChanged:(v)=>setLocal((){amountMode=v.first;})),
+                  const SizedBox(height: 8),
+                  TextField(controller: amount, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Полученная сумма', suffixText: '₽')),
+                  TextField(controller: vehicle, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (_) => setLocal(() {}), decoration: InputDecoration(labelText: 'Автобус', suffixText: amountMode ? '₽' : '%')),
+                  TextField(controller: credit, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (_) => setLocal(() {}), decoration: InputDecoration(labelText: 'Кредиты', suffixText: amountMode ? '₽' : '%')),
+                  TextField(controller: personal, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (_) => setLocal(() {}), decoration: InputDecoration(labelText: 'Личные', suffixText: amountMode ? '₽' : '%')),
+                  TextField(controller: reserve, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (_) => setLocal(() {}), decoration: InputDecoration(labelText: 'Заначка', suffixText: amountMode ? '₽' : '%')),
+                  const SizedBox(height: 8),
+                  Text(amountMode ? 'Распределено: ${total.toStringAsFixed(0)} ₽ из ${payoutAmount.toStringAsFixed(0)} ₽' : 'Итого: ${total.toStringAsFixed(1)}%'),
+                  if (!valid)
+                    Text(amountMode ? 'Суммы должны быть равны выплате.' : 'Проценты должны составлять ровно 100%.', style: const TextStyle(color: Colors.red)),
+                ],
               ),
-            ),
-          ],
+            );
+          },
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Отмена'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
           FilledButton(
-            onPressed: () => Navigator.pop(
-              context,
-              double.tryParse(controller.text.replaceAll(',', '.')),
-            ),
-            child: const Text('Подтвердить получение'),
+            onPressed: () {
+              double v(TextEditingController c) => double.tryParse(c.text.replaceAll(',', '.')) ?? 0;
+              final total = v(vehicle) + v(credit) + v(personal) + v(reserve);
+              final a = double.tryParse(amount.text.replaceAll(',', '.'));
+              if (a == null || a <= 0) return;
+              if (amountMode && (total-a).abs()>0.01) return;
+              if (!amountMode && (total-100).abs()>0.01) return;
+              double p(TextEditingController c) => amountMode ? (v(c)/a*100) : v(c);
+              Navigator.pop(context, {'amount': a, 'vehicle': p(vehicle), 'credit': p(credit), 'personal': p(personal), 'reserve': p(reserve)});
+            },
+            child: const Text('Получил и распределить'),
           ),
         ],
       ),
     );
 
-    if (amount == null || amount <= 0) return;
-    await _assistant.receiveTripPayout(month: _month, amount: amount);
+    amount.dispose(); vehicle.dispose(); credit.dispose(); personal.dispose(); reserve.dispose();
+    if (result == null) return;
+    await _assistant.receiveTripPayout(
+      month: _month,
+      amount: result['amount']!,
+      vehiclePercent: result['vehicle'],
+      creditPercent: result['credit'],
+      personalPercent: result['personal'],
+      reservePercent: result['reserve'],
+    );
     await _load();
   }
 
@@ -358,6 +388,30 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 12),
+            BusCard(
+              onTap: () async {
+                await Navigator.of(context).push<void>(
+                  MaterialPageRoute(builder: (_) => const NotesScreen()),
+                );
+              },
+              child: const Row(
+                children: [
+                  Icon(Icons.sticky_note_2_outlined, size: 34),
+                  SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Заметки', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                        Text('Личные пометки, дела и напоминания'),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right),
+                ],
+              ),
+            ),
             const SizedBox(height: 16),
             if (_loading)
               const Padding(
@@ -381,10 +435,13 @@ class _FinanceScreenState extends State<FinanceScreen> {
                     const SizedBox(height: 10),
                     _row('Автобус', snapshot.vehicleCash, strong: true),
                     _row('Кредиты', snapshot.creditCash, strong: true),
-                    _row('Личные', snapshot.personalCash, strong: true),
+                    _row('Заработал себе (всего)', snapshot.personalFund, strong: true),
+                    _row('Заначка', snapshot.reserveCash, strong: true),
+                    if (snapshot.reserveDebt > 0)
+                      _row('Нужно вернуть в заначку', snapshot.reserveDebt),
                     const SizedBox(height: 6),
                     const Text(
-                      'Остатки учитывают расходы и ручные переводы между счетами.',
+                      'Автобус, кредиты и заначка — реальные остатки. «Заработал себе» — статистика, а не личный баланс.',
                     ),
                   ],
                 ),

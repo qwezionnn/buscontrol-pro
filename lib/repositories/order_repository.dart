@@ -1,5 +1,6 @@
 import '../database/database_helper.dart';
 import '../models/order.dart';
+import '../services/notification_service.dart';
 
 class OrderRepository {
   OrderRepository._();
@@ -49,8 +50,8 @@ class OrderRepository {
   }
 
   /// Добавляет новый заказ.
-  Future<int> addOrder(Order order) {
-    return _databaseHelper.addOrder(
+  Future<int> addOrder(Order order) async {
+    final id = await _databaseHelper.addOrder(
       title: order.title,
       date: order.date,
       time: order.time,
@@ -62,14 +63,16 @@ class OrderRepository {
       reminderHours: order.reminderHours,
       note: order.note,
     );
+    await NotificationService.instance.scheduleOrder(order.copyWith(id: id));
+    return id;
   }
 
-  Future<void> updateOrder(Order order) {
+  Future<void> updateOrder(Order order) async {
     final id = order.id;
     if (id == null) {
       throw ArgumentError('Нельзя изменить заказ без id.');
     }
-    return _databaseHelper.updateOrder(
+    await _databaseHelper.updateOrder(
       orderId: id,
       title: order.title,
       date: order.date,
@@ -82,17 +85,16 @@ class OrderRepository {
       reminderHours: order.reminderHours,
       note: order.note,
     );
+    await NotificationService.instance.scheduleOrder(order);
   }
 
   /// Устанавливает статус заказа.
   Future<void> setStatus({
     required int orderId,
     required OrderStatus status,
-  }) {
-    return _databaseHelper.updateOrderStatus(
-      orderId,
-      status.name,
-    );
+  }) async {
+    await _databaseHelper.updateOrderStatus(orderId, status.name);
+    if (status != OrderStatus.planned) { await NotificationService.instance.cancelOrder(orderId); }
   }
 
   Future<void> markCompleted(int orderId) {
@@ -122,6 +124,7 @@ class OrderRepository {
     required double amount,
     required double vehiclePercent,
     required double personalPercent,
+    double reservePercent = 0,
     required Map<String, double> creditPercents,
     String? note,
   }) {
@@ -130,6 +133,7 @@ class OrderRepository {
       amount: amount,
       vehiclePercent: vehiclePercent,
       personalPercent: personalPercent,
+      reservePercent: reservePercent,
       creditPercents: creditPercents,
       note: note,
     );
@@ -140,8 +144,9 @@ class OrderRepository {
   }
 
   /// Полностью удаляет ошибочно созданную запись.
-  Future<void> deleteOrder(int orderId) {
-    return _databaseHelper.deleteOrder(orderId);
+  Future<void> deleteOrder(int orderId) async {
+    await NotificationService.instance.cancelOrder(orderId);
+    await _databaseHelper.deleteOrder(orderId);
   }
 
   /// Сумма выполненных заказов за выбранный день.

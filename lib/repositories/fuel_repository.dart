@@ -34,6 +34,7 @@ class FuelRepository {
       liters: fuelLog.liters,
       pricePerLiter: fuelLog.pricePerLiter,
       source: fuelLog.source,
+      paymentAccount: fuelLog.paymentAccount,
       mileage: fuelLog.mileage,
       note: fuelLog.note,
     );

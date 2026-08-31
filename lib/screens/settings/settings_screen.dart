@@ -5,6 +5,7 @@ import '../../models/app_settings.dart';
 import '../../repositories/settings_repository.dart';
 import '../../widgets/bus_card.dart';
 import '../../services/backup_service.dart';
+import '../../services/notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -691,6 +692,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
 
+            BusCard(child: ListTile(leading: const Icon(Icons.notifications_active_outlined), title: const Text('Уведомления iPhone'), subtitle: const Text('Разрешить напоминания о заказах. Заказы: за день + за заданное число часов. ТО настраивается индивидуально.'), trailing: FilledButton(onPressed: () async { final ok = await NotificationService.instance.requestPermissions(); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Уведомления разрешены' : 'Проверьте разрешение уведомлений в настройках iPhone'))); }, child: const Text('Разрешить')))),
             const SizedBox(height: 16),
 
             BusCard(

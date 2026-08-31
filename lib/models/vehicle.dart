@@ -7,6 +7,7 @@ class Vehicle {
     this.note,
     this.initialMileage,
     this.archived = false,
+    this.kind = 'commercial',
   });
 
   final int? id;
@@ -15,6 +16,8 @@ class Vehicle {
   final String? note;
   final int? initialMileage;
   final bool archived;
+  final String kind;
+  bool get isPersonal => kind == 'personal';
 
   String get displayName {
     final number = registrationNumber?.trim() ?? '';
@@ -29,6 +32,7 @@ class Vehicle {
       note: map['note']?.toString(),
       initialMileage: (map['initial_mileage'] as num?)?.toInt(),
       archived: (map['archived'] as num?)?.toInt() == 1,
+      kind: map['vehicle_kind']?.toString() ?? 'commercial',
     );
   }
 
@@ -40,6 +44,7 @@ class Vehicle {
       'note': note,
       'initial_mileage': initialMileage,
       'archived': archived ? 1 : 0,
+      'vehicle_kind': kind,
     };
   }
 }

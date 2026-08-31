@@ -30,6 +30,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   TimeOfDay _selectedTime = TimeOfDay.now();
 
   bool _isSaving = false;
+  String _paymentAccount = 'vehicle';
 
   @override
   void initState() {
@@ -60,6 +61,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         expense.amount == expense.amount.roundToDouble() ? 0 : 2,
       );
       _descriptionController.text = expense.description ?? '';
+      _paymentAccount = expense.paymentAccount;
       return;
     }
 
@@ -171,6 +173,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             ? null
             : _descriptionController.text.trim(),
         amount: amount,
+        paymentAccount: _paymentAccount,
       );
 
       if (widget.expense == null) {
@@ -292,6 +295,23 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
                   return null;
                 },
+              ),
+
+              const SizedBox(height: 16),
+
+              DropdownButtonFormField<String>(
+                initialValue: _paymentAccount,
+                decoration: const InputDecoration(
+                  labelText: 'Оплатить с',
+                  prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'vehicle', child: Text('Автобус')),
+                  DropdownMenuItem(value: 'reserve', child: Text('Заначка')),
+                  DropdownMenuItem(value: 'personal', child: Text('Личные')),
+                ],
+                onChanged: (value) => setState(() => _paymentAccount = value ?? 'vehicle'),
               ),
 
               const SizedBox(height: 16),
