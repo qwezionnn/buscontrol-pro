@@ -33,6 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _refreshVersion = 0;
   List<Vehicle> _vehicles = const [];
   int? _activeVehicleId;
+  Vehicle? _activeVehicle;
 
   @override
   void initState() {
@@ -85,6 +86,10 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _vehicles = vehicles;
       _activeVehicleId = active.id;
+      _activeVehicle = active;
+      if (active.isPersonal && _currentIndex > 1) {
+        _currentIndex = 0;
+      }
     });
   }
 
@@ -105,13 +110,59 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = <Widget>[
-      TodayScreen(key: ValueKey('today-$_refreshVersion')),
-      CalendarScreen(key: ValueKey('calendar-$_refreshVersion')),
-      FinanceScreen(key: ValueKey('finance-$_refreshVersion')),
-      BusScreen(key: ValueKey('bus-$_refreshVersion')),
-      SettingsScreen(key: ValueKey('settings-$_refreshVersion')),
-    ];
+    final personalMode = _activeVehicle?.isPersonal ?? false;
+    final pages = personalMode
+        ? <Widget>[
+            BusScreen(key: ValueKey('personal-car-$_refreshVersion')),
+            SettingsScreen(key: ValueKey('settings-$_refreshVersion')),
+          ]
+        : <Widget>[
+            TodayScreen(key: ValueKey('today-$_refreshVersion')),
+            CalendarScreen(key: ValueKey('calendar-$_refreshVersion')),
+            FinanceScreen(key: ValueKey('finance-$_refreshVersion')),
+            BusScreen(key: ValueKey('bus-$_refreshVersion')),
+            SettingsScreen(key: ValueKey('settings-$_refreshVersion')),
+          ];
+    final destinations = personalMode
+        ? const <NavigationDestination>[
+            NavigationDestination(
+              icon: Icon(Icons.directions_car_outlined),
+              selectedIcon: Icon(Icons.directions_car),
+              label: 'Автомобиль',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.more_horiz),
+              selectedIcon: Icon(Icons.more_horiz),
+              label: 'Ещё',
+            ),
+          ]
+        : const <NavigationDestination>[
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'Сегодня',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.calendar_month_outlined),
+              selectedIcon: Icon(Icons.calendar_month),
+              label: 'Календарь',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.account_balance_wallet_outlined),
+              selectedIcon: Icon(Icons.account_balance_wallet),
+              label: 'Финансы',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.directions_bus_outlined),
+              selectedIcon: Icon(Icons.directions_bus),
+              label: 'Автобус',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.more_horiz),
+              selectedIcon: Icon(Icons.more_horiz),
+              label: 'Ещё',
+            ),
+          ];
 
     return Scaffold(
       body: Column(
@@ -201,33 +252,7 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: _selectPage,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Сегодня',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.calendar_month_outlined),
-            selectedIcon: Icon(Icons.calendar_month),
-            label: 'Календарь',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            selectedIcon: Icon(Icons.account_balance_wallet),
-            label: 'Финансы',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.directions_bus_outlined),
-            selectedIcon: Icon(Icons.directions_bus),
-            label: 'Автобус',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.more_horiz),
-            selectedIcon: Icon(Icons.more_horiz),
-            label: 'Ещё',
-          ),
-        ],
+        destinations: destinations,
       ),
     );
   }

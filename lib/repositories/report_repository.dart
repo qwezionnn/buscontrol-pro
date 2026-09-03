@@ -105,7 +105,12 @@ class ReportRepository {
 
     final tripIncome = completedTrips.fold<double>(
       0,
-      (sum, row) => sum + ((row['price'] as num?)?.toDouble() ?? 0),
+      (sum, row) {
+        final price = (row['price'] as num?)?.toDouble() ?? 0;
+        final waitHours = (row['wait_hours'] as num?)?.toDouble() ?? 0;
+        final waitRate = (row['wait_rate'] as num?)?.toDouble() ?? 0;
+        return sum + price + waitHours * waitRate;
+      },
     );
     final orderIncome = completedOrders.fold<double>(
       0,

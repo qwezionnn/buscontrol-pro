@@ -428,11 +428,17 @@ class _FinanceDetailScreenState extends State<FinanceDetailScreen> {
     final type = trip['type']?.toString() ?? '';
     final time = trip['time']?.toString();
     final isExtra = type == 'extra';
+    final waitHours = (trip['wait_hours'] as num?)?.toDouble() ?? 0;
+    final waitRate = (trip['wait_rate'] as num?)?.toDouble() ?? 0;
+    final price = (trip['price'] as num?)?.toDouble() ?? 0;
+    final totalPrice = price + waitHours * waitRate;
 
     final subtitleParts = <String>[
       _formatDate(trip['date']?.toString() ?? ''),
       if (time != null && time.isNotEmpty) time,
       isExtra ? 'Дополнительный рейс' : 'Стандартный рейс',
+      if (isExtra && waitHours > 0)
+        'Ожидание ${_number(waitHours)} ч × ${_money(waitRate)}',
     ];
 
     return BusCard(
@@ -462,7 +468,7 @@ class _FinanceDetailScreenState extends State<FinanceDetailScreen> {
           ),
           const SizedBox(width: 10),
           Text(
-            _money(trip['price']),
+            _money(totalPrice),
             style: const TextStyle(
               fontWeight: FontWeight.w700,
             ),

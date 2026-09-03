@@ -41,7 +41,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 14,
+      version: 15,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -85,6 +85,9 @@ class DatabaseHelper {
     if (oldVersion < 14) {
       await _upgradeToVersion14(db);
     }
+    if (oldVersion < 15) {
+      await _upgradeToVersion15(db);
+    }
     await _createTables(db);
     await _insertDefaultSettings(db);
     await _ensureDefaultVehicle(db);
@@ -117,6 +120,8 @@ class DatabaseHelper {
         title TEXT NOT NULL,
         type TEXT NOT NULL,
         price REAL NOT NULL,
+        wait_hours REAL NOT NULL DEFAULT 0,
+        wait_rate REAL NOT NULL DEFAULT 0,
         completed INTEGER NOT NULL DEFAULT 0
       )
     ''');
@@ -252,6 +257,7 @@ class DatabaseHelper {
         amount REAL NOT NULL,
         paid_at TEXT NOT NULL,
         payment_month TEXT,
+        source_account TEXT NOT NULL DEFAULT 'personal',
         note TEXT,
         FOREIGN KEY(credit_id) REFERENCES credits(id) ON DELETE CASCADE
       )
@@ -715,6 +721,19 @@ class DatabaseHelper {
     await _createTables(db);
   }
 
+
+  Future<void> _upgradeToVersion15(Database db) async {
+    if (!await _hasColumn(db, 'trips', 'wait_hours')) {
+      await db.execute('ALTER TABLE trips ADD COLUMN wait_hours REAL NOT NULL DEFAULT 0');
+    }
+    if (!await _hasColumn(db, 'trips', 'wait_rate')) {
+      await db.execute('ALTER TABLE trips ADD COLUMN wait_rate REAL NOT NULL DEFAULT 0');
+    }
+    if (!await _hasColumn(db, 'credit_payments', 'source_account')) {
+      await db.execute("ALTER TABLE credit_payments ADD COLUMN source_account TEXT NOT NULL DEFAULT 'personal'");
+    }
+  }
+
   Future<int> getActiveVehicleId() async {
     final value = await getSetting('active_vehicle_id');
     return int.tryParse(value ?? '') ?? 1;
@@ -992,12 +1011,14 @@ class DatabaseHelper {
     required int creditId,
     required double amount,
     String? paymentMonth,
+    String sourceAccount = 'personal',
     String? note,
   }) async {
     if (amount <= 0) {
       throw ArgumentError('Сумма платежа должна быть больше нуля.');
     }
     final db = await database;
+    final vehicleId = await getActiveVehicleId();
     return db.transaction((transaction) async {
       final rows = await transaction.query(
         'credits',
@@ -1015,6 +1036,7 @@ class DatabaseHelper {
         'amount': payment,
         'paid_at': DateTime.now().toIso8601String(),
         'payment_month': paymentMonth,
+        'source_account': sourceAccount,
         'note': note?.trim(),
       });
       await transaction.update(
@@ -1025,6 +1047,20 @@ class DatabaseHelper {
         where: 'id = ?',
         whereArgs: [creditId],
       );
+
+      if (sourceAccount == 'vehicle' ||
+          sourceAccount == 'credit' ||
+          sourceAccount == 'reserve') {
+        await transaction.insert('fund_transfers', {
+          'vehicle_id': vehicleId,
+          'from_account': sourceAccount,
+          'to_account': 'credit_payment',
+          'amount': payment,
+          'transferred_at': DateTime.now().toIso8601String(),
+          'note': 'Платёж по кредиту',
+          'purpose': 'credit_payment',
+        });
+      }
       return id;
     });
   }
@@ -1164,6 +1200,8 @@ class DatabaseHelper {
     required String title,
     required String type,
     required double price,
+    double waitHours = 0,
+    double waitRate = 0,
     bool completed = false,
     bool ignoreConflict = false,
   }) async {
@@ -1178,6 +1216,8 @@ class DatabaseHelper {
         'title': title,
         'type': type,
         'price': price,
+        'wait_hours': waitHours,
+        'wait_rate': waitRate,
         'completed': completed ? 1 : 0,
       },
       conflictAlgorithm: ignoreConflict

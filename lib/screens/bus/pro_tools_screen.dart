@@ -38,8 +38,398 @@ class _ProToolsScreenState extends State<ProToolsScreen> {
   @override Widget build(BuildContext context){final personalMode=vehicle?.isPersonal??false;return Scaffold(appBar:AppBar(title:Text(personalMode?'Журнал автомобиля':'Центр BusControl 5.0')),floatingActionButton:personalMode?FloatingActionButton.extended(onPressed:_personalEvent,icon:const Icon(Icons.add),label:const Text('Запись')):null,body:ListView(padding:const EdgeInsets.all(16),children:[if(!personalMode)...[BusCard(onTap:_monthArchive,child:const ListTile(leading:Icon(Icons.history),title:Text('История по месяцам'),subtitle:Text('Рейсы, заказы, топливо, расходы, ремонты и полная сводка'),trailing:Icon(Icons.chevron_right))),BusCard(onTap:_year,child:const ListTile(leading:Icon(Icons.bar_chart),title:Text('Итоги года'),subtitle:Text('Рейсы, заказы, пробег, доходы и рабочие расходы'),trailing:Icon(Icons.chevron_right))),BusCard(onTap:_search,child:const ListTile(leading:Icon(Icons.search),title:Text('Поиск по всей истории'),trailing:Icon(Icons.chevron_right))),BusCard(onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const DebtsScreen())),child:const ListTile(leading:Icon(Icons.request_quote_outlined),title:Text('Долги по заказам'),subtitle:Text('Все неоплаченные и частично оплаченные заказы'),trailing:Icon(Icons.chevron_right))),BusCard(onTap:_planned,child:ListTile(leading:const Icon(Icons.event_note),title:const Text('Планируемые расходы'),subtitle:Text('${planned.length} активных • ${money(planned.fold<double>(0,(a,r)=>a+((r['amount'] as num?)?.toDouble()??0)))}'),trailing:const Icon(Icons.add))),] else ...[const BusCard(child:ListTile(leading:Icon(Icons.directions_car),title:Text('Личный автомобиль'),subtitle:Text('Только пробег, запчасти, ремонты и ТО. Топливо и зарплата не учитываются.'))),...personal.map((r)=>Card(child:ListTile(title:Text(r['title']?.toString()??''),subtitle:Text('${r['date']} • ${r['mileage']??'—'} км • ${money(r['amount'])}'),trailing:IconButton(icon:const Icon(Icons.delete_outline),onPressed:()async{await db.deletePersonalVehicleEvent(r['id'] as int);await _load();}))))],const SizedBox(height:8),BusCard(onTap:_service,child:ListTile(leading:const Icon(Icons.notifications_active_outlined),title:const Text('ТО и умные напоминания'),subtitle:Text('${service.length} пунктов • интервалы задаются индивидуально'),trailing:const Icon(Icons.add))),...service.map((r)=>Card(child:ListTile(title:Text(r['title']?.toString()??''),subtitle:Text('Дата: ${r['next_date']??'—'} • Пробег: ${r['next_mileage']??'—'} • напомнить за ${r['first_notice_days']} и ${r['second_notice_days']} дн.'),trailing:IconButton(icon:const Icon(Icons.delete_outline),onPressed:()async{await db.deleteServicePlan(r['id'] as int);await _load();})))),if(!personalMode)...planned.map((r)=>CheckboxListTile(value:r['completed']==1,title:Text(r['title']?.toString()??''),subtitle:Text('${money(r['amount'])}${r['due_date']==null?'':' • ${r['due_date']}'}'),onChanged:(v)async{await db.setPlannedExpenseCompleted(r['id'] as int,v??false);await _load();}))]));}
 }
 
-class _MonthArchiveScreen extends StatefulWidget { const _MonthArchiveScreen({required this.initial}); final DateTime initial; @override State<_MonthArchiveScreen> createState()=>_MonthArchiveScreenState(); }
-class _MonthArchiveScreenState extends State<_MonthArchiveScreen>{ final db=DatabaseHelper.instance; final reports=ReportRepository.instance; late DateTime month; bool loading=true; MonthReport? report, previous; List<Map<String,Object?>> trips=[],orders=[],fuel=[],expenses=[],repairs=[]; @override void initState(){super.initState();month=widget.initial;load();} String d(DateTime x)=>'${x.year}-${x.month.toString().padLeft(2,'0')}-${x.day.toString().padLeft(2,'0')}'; Future<void> load()async{setState(()=>loading=true);final from=d(DateTime(month.year,month.month)),to=d(DateTime(month.year,month.month+1,0));final r=await reports.getMonthReport(month);final prev=await reports.getMonthReport(DateTime(month.year,month.month-1));final t=await db.getTripsBetween(from,to),o=await db.getOrdersBetween(from,to),f=await db.getFuelLogsBetween(from,to),e=await db.getExpensesBetween(from,to),allR=await db.getRepairs();if(!mounted)return;setState((){report=r;previous=prev;trips=t.where((x)=>x['completed']==1).toList();orders=o;fuel=f;expenses=e;repairs=allR.where((x){final date=x['date']?.toString()??'';return date.compareTo(from)>=0&&date.compareTo(to)<=0;}).toList();loading=false;});} String m(double x)=>'${x.toStringAsFixed(0)} ₽'; @override Widget build(BuildContext context){final r=report;final morning=trips.where((x)=>x['type']=='morning').length,evening=trips.where((x)=>x['type']=='evening').length,extra=trips.where((x)=>x['type']=='extra').length;final consumption=(r!=null&&r.distance>0)?r.fuelLiters/r.distance*100:0.0;return Scaffold(appBar:AppBar(title:const Text('История по месяцам')),body:loading?const Center(child:CircularProgressIndicator()):ListView(padding:const EdgeInsets.all(16),children:[Row(children:[IconButton(onPressed:(){month=DateTime(month.year,month.month-1);load();},icon:const Icon(Icons.chevron_left)),Expanded(child:Text('${month.month.toString().padLeft(2,'0')}.${month.year}',textAlign:TextAlign.center,style:const TextStyle(fontSize:22,fontWeight:FontWeight.bold))),IconButton(onPressed:(){month=DateTime(month.year,month.month+1);load();},icon:const Icon(Icons.chevron_right))]),if(r!=null)BusCard(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Обычные рейсы: ${morning+evening} (утро $morning / вечер $evening)'),Text('Доп. рейсы: $extra'),Text('Заказы: ${orders.length}'),Text('Пробег: ${r.distance} км'),Text('Топливо: ${r.fuelLiters.toStringAsFixed(1)} л • ${m(r.fuelCost)}'),Text('Средний расход: ${consumption.toStringAsFixed(1)} л/100 км'),Text('Другие расходы: ${m(r.expenseCost)}'),Text('Работа принесла: ${m(r.tripIncome+r.orderIncome-r.fuelCost-r.expenseCost)}',style:const TextStyle(fontWeight:FontWeight.bold)),const Divider(),Text('Сравнение с прошлым месяцем: рейсы ${(r.completedTrips-(previous?.completedTrips??0))>=0?'+':''}${r.completedTrips-(previous?.completedTrips??0)}, пробег ${(r.distance-(previous?.distance??0))>=0?'+':''}${r.distance-(previous?.distance??0)} км')])),_section('Рейсы',trips,(x)=>'${x['date']} • ${x['title']} • ${m(((x['price'] as num?)?.toDouble()??0))}'),_section('Заказы',orders,(x)=>'${x['date']} • ${x['title']} • ${m(((x['amount'] as num?)?.toDouble()??0))}'),_section('Топливо',fuel,(x)=>'${x['date']} • ${x['liters']} л • ${m(((x['total'] as num?)?.toDouble()??0))}'),_section('Расходы / запчасти',expenses,(x)=>'${x['date']} • ${x['description']} • ${m(((x['amount'] as num?)?.toDouble()??0))}'),_section('Ремонты',repairs,(x)=>'${x['date']} • ${x['title']} • ${m((((x['part_cost'] as num?)?.toDouble()??0)+((x['work_cost'] as num?)?.toDouble()??0)))}') ]));} Widget _section(String title,List<Map<String,Object?>> rows,String Function(Map<String,Object?>) text)=>ExpansionTile(title:Text('$title (${rows.length})'),children:rows.map((x)=>ListTile(dense:true,title:Text(text(x)))).toList());}
+
+class _MonthArchiveScreen extends StatefulWidget {
+  const _MonthArchiveScreen({required this.initial});
+  final DateTime initial;
+
+  @override
+  State<_MonthArchiveScreen> createState() => _MonthArchiveScreenState();
+}
+
+class _MonthArchiveScreenState extends State<_MonthArchiveScreen> {
+  final db = DatabaseHelper.instance;
+  final reports = ReportRepository.instance;
+
+  late DateTime month;
+  bool loading = true;
+  MonthReport? report;
+  MonthReport? previous;
+  List<Map<String, Object?>> trips = [];
+  List<Map<String, Object?>> orders = [];
+  List<Map<String, Object?>> fuel = [];
+  List<Map<String, Object?>> expenses = [];
+  List<Map<String, Object?>> repairs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    month = widget.initial;
+    load();
+  }
+
+  String _date(DateTime value) =>
+      '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+
+  String _money(num value) => '${value.toDouble().toStringAsFixed(0)} ₽';
+
+  double _price(Map<String, Object?> row) =>
+      (row['price'] as num?)?.toDouble() ?? 0;
+
+  double _waitHours(Map<String, Object?> row) =>
+      (row['wait_hours'] as num?)?.toDouble() ?? 0;
+
+  double _waitRate(Map<String, Object?> row) =>
+      (row['wait_rate'] as num?)?.toDouble() ?? 0;
+
+  double _tripTotal(Map<String, Object?> row) =>
+      _price(row) + _waitHours(row) * _waitRate(row);
+
+  Future<void> load() async {
+    setState(() => loading = true);
+    final from = _date(DateTime(month.year, month.month));
+    final to = _date(DateTime(month.year, month.month + 1, 0));
+
+    final currentReport = await reports.getMonthReport(month);
+    final prevReport = await reports.getMonthReport(
+      DateTime(month.year, month.month - 1),
+    );
+    final monthTrips = await db.getTripsBetween(from, to);
+    final monthOrders = await db.getOrdersBetween(from, to);
+    final monthFuel = await db.getFuelLogsBetween(from, to);
+    final monthExpenses = await db.getExpensesBetween(from, to);
+    final allRepairs = await db.getRepairs();
+
+    if (!mounted) return;
+    setState(() {
+      report = currentReport;
+      previous = prevReport;
+      trips = monthTrips.where((x) => x['completed'] == 1).toList();
+      orders = monthOrders;
+      fuel = monthFuel;
+      expenses = monthExpenses;
+      repairs = allRepairs.where((x) {
+        final date = x['date']?.toString() ?? '';
+        return date.compareTo(from) >= 0 && date.compareTo(to) <= 0;
+      }).toList();
+      loading = false;
+    });
+  }
+
+  int get _morningCount => trips.where((x) => x['type'] == 'morning').length;
+  int get _eveningCount => trips.where((x) => x['type'] == 'evening').length;
+  int get _extraCount => trips.where((x) => x['type'] == 'extra').length;
+
+  double get _morningAmount => trips
+      .where((x) => x['type'] == 'morning')
+      .fold<double>(0, (a, x) => a + _tripTotal(x));
+
+  double get _eveningAmount => trips
+      .where((x) => x['type'] == 'evening')
+      .fold<double>(0, (a, x) => a + _tripTotal(x));
+
+  List<Map<String, Object?>> get _extraTrips =>
+      trips.where((x) => x['type'] == 'extra').toList();
+
+  int get _fullDays {
+    final map = <String, Set<String>>{};
+    for (final row in trips.where(
+      (x) => x['type'] == 'morning' || x['type'] == 'evening',
+    )) {
+      final date = row['date']?.toString() ?? '';
+      map.putIfAbsent(date, () => <String>{}).add(row['type'].toString());
+    }
+    return map.values
+        .where((types) => types.contains('morning') && types.contains('evening'))
+        .length;
+  }
+
+  int get _partialDays {
+    final map = <String, Set<String>>{};
+    for (final row in trips.where(
+      (x) => x['type'] == 'morning' || x['type'] == 'evening',
+    )) {
+      final date = row['date']?.toString() ?? '';
+      map.putIfAbsent(date, () => <String>{}).add(row['type'].toString());
+    }
+    return map.values.where((types) => types.length == 1).length;
+  }
+
+  double get _extraBase =>
+      _extraTrips.fold<double>(0, (a, x) => a + _price(x));
+
+  double get _extraWaitHours =>
+      _extraTrips.fold<double>(0, (a, x) => a + _waitHours(x));
+
+  double get _extraWaitAmount => _extraTrips.fold<double>(
+        0,
+        (a, x) => a + _waitHours(x) * _waitRate(x),
+      );
+
+  Widget _metric(String title, String value, {String? subtitle}) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 3),
+              Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _summaryTab() {
+    final r = report;
+    if (r == null) return const SizedBox.shrink();
+    final consumption = r.distance > 0 ? r.fuelLiters / r.distance * 100 : 0.0;
+    final tripDelta = r.completedTrips - (previous?.completedTrips ?? 0);
+    final mileageDelta = r.distance - (previous?.distance ?? 0);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        BusCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Главное за месяц',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              Text('Полных рейсов (утро + вечер): $_fullDays'),
+              Text('Неполных дней: $_partialDays'),
+              Text('Доп. рейсов: $_extraCount'),
+              Text('Заказов: ${orders.length}'),
+              Text('Пробег: ${r.distance} км'),
+              Text(
+                'Топливо: ${r.fuelLiters.toStringAsFixed(1)} л • ${_money(r.fuelCost)}',
+              ),
+              Text('Средний расход: ${consumption.toStringAsFixed(1)} л/100 км'),
+              Text('Другие расходы: ${_money(r.expenseCost)}'),
+              const Divider(),
+              Text(
+                'Сравнение с прошлым месяцем: '
+                'рейсы ${tripDelta >= 0 ? '+' : ''}$tripDelta, '
+                'пробег ${mileageDelta >= 0 ? '+' : ''}$mileageDelta км',
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        _section(
+          'Заказы',
+          orders,
+          (x) =>
+              '${x['date']} • ${x['title']} • ${_money((x['amount'] as num?) ?? 0)}',
+        ),
+        _section(
+          'Топливо',
+          fuel,
+          (x) =>
+              '${x['date']} • ${x['liters']} л • ${_money((x['total'] as num?) ?? 0)}',
+        ),
+        _section(
+          'Расходы / запчасти',
+          expenses,
+          (x) =>
+              '${x['date']} • ${x['description'] ?? x['category']} • ${_money((x['amount'] as num?) ?? 0)}',
+        ),
+        _section(
+          'Ремонты',
+          repairs,
+          (x) {
+            final total =
+                ((x['part_cost'] as num?)?.toDouble() ?? 0) +
+                ((x['work_cost'] as num?)?.toDouble() ?? 0);
+            return '${x['date']} • ${x['title']} • ${_money(total)}';
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _tripsTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _metric(
+                'Полных рейсов',
+                '$_fullDays',
+                subtitle: 'утро + вечер в один день',
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _metric(
+                'Неполных',
+                '$_partialDays',
+                subtitle: 'только утро или вечер',
+              ),
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            Expanded(
+              child: _metric(
+                'Утро',
+                '$_morningCount',
+                subtitle: _money(_morningAmount),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _metric(
+                'Вечер',
+                '$_eveningCount',
+                subtitle: _money(_eveningAmount),
+              ),
+            ),
+          ],
+        ),
+        BusCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Дополнительные рейсы',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text('Рейсов: $_extraCount'),
+              Text('За сами рейсы: ${_money(_extraBase)}'),
+              Text(
+                'Ожидание: ${_extraWaitHours.toStringAsFixed(_extraWaitHours == _extraWaitHours.roundToDouble() ? 0 : 1)} ч • ${_money(_extraWaitAmount)}',
+              ),
+              Text(
+                'Итого доп. рейсы: ${_money(_extraBase + _extraWaitAmount)}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        ..._extraTrips.map((x) {
+          final waitHours = _waitHours(x);
+          final waitRate = _waitRate(x);
+          final waitTotal = waitHours * waitRate;
+          return Card(
+            child: ListTile(
+              title: Text(x['title']?.toString() ?? 'Доп. рейс'),
+              subtitle: Text(
+                '${x['date']}'
+                '${waitHours > 0 ? '\nОжидание: ${waitHours.toStringAsFixed(waitHours == waitHours.roundToDouble() ? 0 : 1)} ч × ${_money(waitRate)} = ${_money(waitTotal)}' : ''}',
+              ),
+              trailing: Text(
+                _money(_tripTotal(x)),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          );
+        }),
+        const SizedBox(height: 12),
+        _section(
+          'Все утренние и вечерние поездки',
+          trips
+              .where((x) => x['type'] == 'morning' || x['type'] == 'evening')
+              .toList(),
+          (x) =>
+              '${x['date']} • ${x['type'] == 'morning' ? 'Утро' : 'Вечер'} • ${_money(_tripTotal(x))}',
+        ),
+      ],
+    );
+  }
+
+  Widget _section(
+    String title,
+    List<Map<String, Object?>> rows,
+    String Function(Map<String, Object?>) text,
+  ) =>
+      ExpansionTile(
+        title: Text('$title (${rows.length})'),
+        children: rows
+            .map((x) => ListTile(dense: true, title: Text(text(x))))
+            .toList(),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('История по месяцам'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Сводка'),
+              Tab(text: 'Рейсы'),
+            ],
+          ),
+        ),
+        body: loading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          onPressed: () {
+                            month = DateTime(month.year, month.month - 1);
+                            load();
+                          },
+                          icon: const Icon(Icons.chevron_left),
+                        ),
+                        Expanded(
+                          child: Text(
+                            '${month.month.toString().padLeft(2, '0')}.${month.year}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            month = DateTime(month.year, month.month + 1);
+                            load();
+                          },
+                          icon: const Icon(Icons.chevron_right),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        _summaryTab(),
+                        _tripsTab(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
 
 class DebtsScreen extends StatefulWidget { const DebtsScreen({super.key}); @override State<DebtsScreen> createState()=>_DebtsScreenState(); }
 class _DebtsScreenState extends State<DebtsScreen>{

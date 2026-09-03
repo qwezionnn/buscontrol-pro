@@ -188,6 +188,8 @@ class TripRepository {
     String? time,
     required String title,
     required double price,
+    double waitHours = 0,
+    double waitRate = 0,
   }) {
     return _databaseHelper.addTrip(
       date: _databaseDate(date),
@@ -195,6 +197,8 @@ class TripRepository {
       title: title,
       type: TripType.extra.name,
       price: price,
+      waitHours: waitHours,
+      waitRate: waitRate,
     );
   }
 

@@ -611,7 +611,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     _eventTile(
                       Icons.directions_bus,
                       trip['title']?.toString() ?? 'Рейс',
-                      '${trip['completed'] == 1 ? 'Выполнен' : 'Не выполнен'} · ${_money(trip['price'])}',
+                      '${trip['completed'] == 1 ? 'Выполнен' : 'Не выполнен'} · ${_money(((trip['price'] as num?)?.toDouble() ?? 0) + (((trip['wait_hours'] as num?)?.toDouble() ?? 0) * ((trip['wait_rate'] as num?)?.toDouble() ?? 0)))}${((trip['wait_hours'] as num?)?.toDouble() ?? 0) > 0 ? ' · ожидание ${((trip['wait_hours'] as num?)?.toDouble() ?? 0).toStringAsFixed(1)} ч' : ''}',
                       onTap: () {
                         Navigator.pop(context);
                         Future<void>.delayed(

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../repositories/financial_assistant_repository.dart';
 import '../../repositories/maintenance_repository.dart';
 import '../../repositories/report_repository.dart';
+import '../../repositories/vehicle_repository.dart';
+import '../../models/vehicle.dart';
 import '../../widgets/bus_card.dart';
 import '../../widgets/simple_bar_chart.dart';
 import '../expenses/emergency_expense_screen.dart';
@@ -25,6 +27,7 @@ class _BusScreenState extends State<BusScreen> {
   final _reports = ReportRepository.instance;
   final _assistant = FinancialAssistantRepository.instance;
   final _maintenance = MaintenanceRepository.instance;
+  final _vehicles = VehicleRepository.instance;
 
   bool _loading = true;
   FinancialSnapshot? _snapshot;
@@ -32,6 +35,7 @@ class _BusScreenState extends State<BusScreen> {
   int _maintenanceCount = 0;
   List<double> _profitValues = const [];
   List<String> _monthLabels = const [];
+  Vehicle? _vehicle;
 
   @override
   void initState() {
@@ -43,8 +47,9 @@ class _BusScreenState extends State<BusScreen> {
     setState(() => _loading = true);
 
     final now = DateTime.now();
-    final snapshot = await _assistant.getSnapshot();
-    final monthReport = await _reports.getMonthReport(now);
+    final vehicle = await _vehicles.getActiveVehicle();
+    final snapshot = vehicle.isPersonal ? null : await _assistant.getSnapshot();
+    final monthReport = vehicle.isPersonal ? null : await _reports.getMonthReport(now);
     final maintenance = await _maintenance.getItems();
 
     final values = <double>[];
@@ -73,6 +78,7 @@ class _BusScreenState extends State<BusScreen> {
 
     if (!mounted) return;
     setState(() {
+      _vehicle = vehicle;
       _snapshot = snapshot;
       _monthReport = monthReport;
       _maintenanceCount = maintenance.length;
@@ -141,6 +147,72 @@ class _BusScreenState extends State<BusScreen> {
   Widget build(BuildContext context) {
     final report = _monthReport;
     final snapshot = _snapshot;
+    final vehicle = _vehicle;
+
+    if (!_loading && vehicle?.isPersonal == true) {
+      return SafeArea(
+        child: RefreshIndicator(
+          onRefresh: _load,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text(
+                vehicle?.displayName ?? 'Личный автомобиль',
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Личный журнал: пробег, запчасти, ремонты и ТО',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              const SizedBox(height: 12),
+              BusCard(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ProToolsScreen()),
+                ),
+                child: const ListTile(
+                  leading: Icon(Icons.directions_car_outlined),
+                  title: Text('Журнал автомобиля'),
+                  subtitle: Text('Запчасти, ремонты, ТО и напоминания'),
+                  trailing: Icon(Icons.chevron_right),
+                ),
+              ),
+              const SizedBox(height: 10),
+              BusCard(
+                onTap: _openMileageHistory,
+                child: const ListTile(
+                  leading: Icon(Icons.speed),
+                  title: Text('Пробег'),
+                  subtitle: Text('История показаний одометра'),
+                  trailing: Icon(Icons.chevron_right),
+                ),
+              ),
+              const SizedBox(height: 10),
+              BusCard(
+                onTap: _openRepairs,
+                child: const ListTile(
+                  leading: Icon(Icons.build_outlined),
+                  title: Text('Ремонты'),
+                  trailing: Icon(Icons.chevron_right),
+                ),
+              ),
+              const SizedBox(height: 10),
+              BusCard(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const MaintenanceScreen()),
+                ),
+                child: ListTile(
+                  leading: const Icon(Icons.notifications_active_outlined),
+                  title: const Text('ТО и обслуживание'),
+                  subtitle: Text('Записей: $_maintenanceCount'),
+                  trailing: const Icon(Icons.chevron_right),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return SafeArea(
       child: RefreshIndicator(

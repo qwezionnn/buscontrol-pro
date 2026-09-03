@@ -123,6 +123,8 @@ class _CreditsScreenState extends State<CreditsScreen> {
       await _repository.addPayment(
         creditId: credit.id!,
         amount: payment.amount,
+        paymentMonth: payment.paymentMonth,
+        sourceAccount: payment.sourceAccount,
         note: payment.note,
       );
       await _load();
@@ -555,10 +557,14 @@ class _CreditEditDialogState extends State<_CreditEditDialog> {
 class _PaymentDraft {
   const _PaymentDraft({
     required this.amount,
+    required this.paymentMonth,
+    required this.sourceAccount,
     this.note,
   });
 
   final double amount;
+  final String paymentMonth;
+  final String sourceAccount;
   final String? note;
 }
 
@@ -575,13 +581,34 @@ class _CreditPaymentDialog extends StatefulWidget {
 class _CreditPaymentDialogState extends State<_CreditPaymentDialog> {
   final TextEditingController _amount = TextEditingController();
   final TextEditingController _note = TextEditingController();
+  DateTime _paymentMonth = DateTime.now();
+  String _sourceAccount = 'credit';
   String? _error;
+
+  static const _sources = <String, String>{
+    'credit': 'Счёт «Кредит»',
+    'vehicle': 'Счёт «Автобус»',
+    'reserve': 'Заначка',
+    'personal': 'Наличные / личные',
+  };
 
   @override
   void dispose() {
     _amount.dispose();
     _note.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickMonth() async {
+    final result = await showDatePicker(
+      context: context,
+      initialDate: _paymentMonth,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (result != null) {
+      setState(() => _paymentMonth = result);
+    }
   }
 
   void _save() {
@@ -595,6 +622,9 @@ class _CreditPaymentDialogState extends State<_CreditPaymentDialog> {
     Navigator.of(context).pop(
       _PaymentDraft(
         amount: amount,
+        paymentMonth:
+            '${_paymentMonth.year}-${_paymentMonth.month.toString().padLeft(2, '0')}',
+        sourceAccount: _sourceAccount,
         note: _note.text.trim().isEmpty ? null : _note.text.trim(),
       ),
     );
@@ -604,37 +634,65 @@ class _CreditPaymentDialogState extends State<_CreditPaymentDialog> {
   Widget build(BuildContext context) {
     return AlertDialog.adaptive(
       title: Text('Платёж: ${widget.credit.title}'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _amount,
-            autofocus: true,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: 'Сумма',
-              suffixText: '₽',
-              helperText:
-                  'Остаток: ${widget.credit.remainingAmount.toStringAsFixed(0)} ₽',
-            ),
-          ),
-          TextField(
-            controller: _note,
-            decoration: const InputDecoration(
-              labelText: 'Комментарий',
-            ),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 10),
-            Text(
-              _error!,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.error,
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _amount,
+              autofocus: true,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'Сумма',
+                suffixText: '₽',
+                helperText:
+                    'Остаток: ${widget.credit.remainingAmount.toStringAsFixed(0)} ₽',
               ),
             ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              initialValue: _sourceAccount,
+              decoration: const InputDecoration(
+                labelText: 'Откуда списать деньги',
+              ),
+              items: _sources.entries
+                  .map(
+                    (entry) => DropdownMenuItem(
+                      value: entry.key,
+                      child: Text(entry.value),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) setState(() => _sourceAccount = value);
+              },
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _pickMonth,
+              icon: const Icon(Icons.calendar_month),
+              label: Text(
+                'За месяц: ${_paymentMonth.month.toString().padLeft(2, '0')}.${_paymentMonth.year}',
+              ),
+            ),
+            TextField(
+              controller: _note,
+              decoration: const InputDecoration(
+                labelText: 'Комментарий',
+              ),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _error!,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
       actions: [
         TextButton(

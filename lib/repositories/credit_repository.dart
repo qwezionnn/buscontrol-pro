@@ -68,12 +68,14 @@ class CreditRepository extends ChangeNotifier {
     required int creditId,
     required double amount,
     String? paymentMonth,
+    String sourceAccount = 'personal',
     String? note,
   }) async {
     await _database.addCreditPayment(
       creditId: creditId,
       amount: amount,
       paymentMonth: paymentMonth,
+      sourceAccount: sourceAccount,
       note: note,
     );
     notifyListeners();

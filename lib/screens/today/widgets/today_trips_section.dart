@@ -193,6 +193,14 @@ class _TodayTripsSectionState extends State<TodayTripsSection> {
                           ),
                     ),
                   ),
+                if (isExtra && trip.waitHours > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(
+                      'Ожидание: ${trip.waitHours.toStringAsFixed(trip.waitHours == trip.waitHours.roundToDouble() ? 0 : 1)} ч × ${_formatMoney(trip.waitRate)}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -200,7 +208,7 @@ class _TodayTripsSectionState extends State<TodayTripsSection> {
           const SizedBox(width: 12),
 
           Text(
-            _formatMoney(trip.price),
+            _formatMoney(trip.totalPrice),
             style: TextStyle(
               fontWeight: FontWeight.w700,
               decoration:

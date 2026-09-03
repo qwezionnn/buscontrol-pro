@@ -189,8 +189,12 @@ class FinancialAssistantRepository {
         .where((row) => row['completed'] == 1)
         .fold<double>(
           0,
-          (sum, row) =>
-              sum + ((row['price'] as num?)?.toDouble() ?? 0),
+          (sum, row) {
+            final price = (row['price'] as num?)?.toDouble() ?? 0;
+            final waitHours = (row['wait_hours'] as num?)?.toDouble() ?? 0;
+            final waitRate = (row['wait_rate'] as num?)?.toDouble() ?? 0;
+            return sum + price + waitHours * waitRate;
+          },
         );
 
     final receivedTripIncome = payouts.fold<double>(
@@ -344,6 +348,32 @@ class FinancialAssistantRepository {
       amount: amount,
       note: note,
     );
+  }
+
+
+  Future<void> setReserveBalance(double targetAmount) async {
+    if (targetAmount < 0) {
+      throw ArgumentError('Сумма заначки не может быть отрицательной.');
+    }
+    final snapshot = await getSnapshot();
+    final delta = targetAmount - snapshot.reserveCash;
+    if (delta.abs() < 0.005) return;
+
+    if (delta > 0) {
+      await _database.addFundTransfer(
+        fromAccount: 'adjustment',
+        toAccount: 'reserve',
+        amount: delta,
+        note: 'Ручная корректировка заначки',
+      );
+    } else {
+      await _database.addFundTransfer(
+        fromAccount: 'reserve',
+        toAccount: 'adjustment',
+        amount: -delta,
+        note: 'Ручная корректировка заначки',
+      );
+    }
   }
 
   Future<List<Map<String, Object?>>> getFundTransfers() {

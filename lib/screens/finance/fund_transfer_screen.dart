@@ -27,6 +27,8 @@ class _FundTransferScreenState extends State<FundTransferScreen> {
     'credit': 'Кредиты',
     'personal': 'Личные',
     'reserve': 'Заначка',
+    'adjustment': 'Корректировка',
+    'credit_payment': 'Платёж по кредиту',
   };
 
   @override
@@ -106,6 +108,46 @@ class _FundTransferScreenState extends State<FundTransferScreen> {
     );
   }
 
+
+  Future<void> _editReserveBalance() async {
+    final controller = TextEditingController(
+      text: (_snapshot?.reserveCash ?? 0).toStringAsFixed(0),
+    );
+    final value = await showDialog<double>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Сумма заначки'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: 'Фактический остаток',
+            suffixText: '₽',
+            helperText: 'Корректировка сохранится в истории.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              double.tryParse(controller.text.replaceAll(',', '.')),
+            ),
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value == null || value < 0) return;
+    await _repository.setReserveBalance(value);
+    await _load();
+  }
+
   Future<void> _deleteTransfer(Map<String, Object?> row) async {
     final id = row['id'];
     if (id is! int) return;
@@ -182,6 +224,12 @@ class _FundTransferScreenState extends State<FundTransferScreen> {
                       _accountCard('reserve', Icons.savings_outlined),
                     ],
                   ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: _editReserveBalance,
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Изменить сумму заначки вручную'),
+                  ),
                   const SizedBox(height: 12),
                   if ((_snapshot?.reserveDebt ?? 0) > 0)
                     BusCard(
@@ -219,6 +267,7 @@ class _FundTransferScreenState extends State<FundTransferScreen> {
                             labelText: 'Откуда',
                           ),
                           items: _names.entries
+                              .where((e) => const {'vehicle','credit','personal','reserve'}.contains(e.key))
                               .map(
                                 (e) => DropdownMenuItem(
                                   value: e.key,
@@ -247,7 +296,7 @@ class _FundTransferScreenState extends State<FundTransferScreen> {
                             labelText: 'Куда',
                           ),
                           items: _names.entries
-                              .where((e) => e.key != _from)
+                              .where((e) => const {'vehicle','credit','personal','reserve'}.contains(e.key) && e.key != _from)
                               .map(
                                 (e) => DropdownMenuItem(
                                   value: e.key,

@@ -68,8 +68,12 @@ class _FinanceScreenState extends State<FinanceScreen> {
         if (event == null) continue;
         total += event.trips
             .where((row) => row['completed'] == 1)
-            .fold<double>(0, (sum, row) =>
-                sum + ((row['price'] as num?)?.toDouble() ?? 0));
+            .fold<double>(0, (sum, row) {
+              final price = (row['price'] as num?)?.toDouble() ?? 0;
+              final waitHours = (row['wait_hours'] as num?)?.toDouble() ?? 0;
+              final waitRate = (row['wait_rate'] as num?)?.toDouble() ?? 0;
+              return sum + price + waitHours * waitRate;
+            });
         total += event.orders
             .where((row) => row['status'] == 'completed')
             .fold<double>(0, (sum, row) =>
@@ -198,6 +202,129 @@ class _FinanceScreenState extends State<FinanceScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+
+  Future<MonthlyExportOptions?> _chooseExportOptions() async {
+    var summary = true;
+    var trips = true;
+    var orders = true;
+    var fuel = true;
+    var expenses = true;
+    var repairs = true;
+    var mileage = true;
+
+    return showDialog<MonthlyExportOptions>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setLocal) {
+          final hasAny =
+              summary || trips || orders || fuel || expenses || repairs || mileage;
+          return AlertDialog(
+            title: const Text('Что добавить в сводку?'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CheckboxListTile(
+                    value: summary,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Общая сводка'),
+                    onChanged: (v) => setLocal(() => summary = v ?? false),
+                  ),
+                  CheckboxListTile(
+                    value: trips,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Рейсы'),
+                    subtitle: const Text(
+                      'Утро, вечер, полные/неполные, доп. рейсы и ожидание',
+                    ),
+                    onChanged: (v) => setLocal(() => trips = v ?? false),
+                  ),
+                  CheckboxListTile(
+                    value: orders,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Заказы'),
+                    onChanged: (v) => setLocal(() => orders = v ?? false),
+                  ),
+                  CheckboxListTile(
+                    value: fuel,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Топливо'),
+                    onChanged: (v) => setLocal(() => fuel = v ?? false),
+                  ),
+                  CheckboxListTile(
+                    value: expenses,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Расходы / запчасти'),
+                    onChanged: (v) => setLocal(() => expenses = v ?? false),
+                  ),
+                  CheckboxListTile(
+                    value: repairs,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Ремонты'),
+                    onChanged: (v) => setLocal(() => repairs = v ?? false),
+                  ),
+                  CheckboxListTile(
+                    value: mileage,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Пробег'),
+                    onChanged: (v) => setLocal(() => mileage = v ?? false),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Отмена'),
+              ),
+              TextButton(
+                onPressed: () => setLocal(() {
+                  summary = true;
+                  trips = true;
+                  orders = true;
+                  fuel = true;
+                  expenses = true;
+                  repairs = true;
+                  mileage = true;
+                }),
+                child: const Text('Выбрать всё'),
+              ),
+              FilledButton(
+                onPressed: hasAny
+                    ? () => Navigator.pop(
+                          dialogContext,
+                          MonthlyExportOptions(
+                            summary: summary,
+                            trips: trips,
+                            orders: orders,
+                            fuel: fuel,
+                            expenses: expenses,
+                            repairs: repairs,
+                            mileage: mileage,
+                          ),
+                        )
+                    : null,
+                child: const Text('Продолжить'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _exportPdf() async {
+    final options = await _chooseExportOptions();
+    if (options == null) return;
+    await _run(() => _export.sharePdf(_month, options: options));
+  }
+
+  Future<void> _exportExcel() async {
+    final options = await _chooseExportOptions();
+    if (options == null) return;
+    await _run(() => _export.shareExcel(_month, options: options));
   }
 
   Widget _metric({
@@ -697,7 +824,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                       child: FilledButton.icon(
                         onPressed: _busy
                             ? null
-                            : () => _run(() => _export.sharePdf(_month)),
+                            : _exportPdf,
                         icon: const Icon(Icons.picture_as_pdf_outlined),
                         label: const Text('Экспорт PDF'),
                       ),
@@ -708,7 +835,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                       child: OutlinedButton.icon(
                         onPressed: _busy
                             ? null
-                            : () => _run(() => _export.shareExcel(_month)),
+                            : _exportExcel,
                         icon: const Icon(Icons.table_view_outlined),
                         label: const Text('Экспорт Excel'),
                       ),

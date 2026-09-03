@@ -12,6 +12,8 @@ class Trip {
     required this.title,
     required this.type,
     required this.price,
+    this.waitHours = 0,
+    this.waitRate = 0,
     this.completed = false,
   });
 
@@ -21,7 +23,12 @@ class Trip {
   final String title;
   final TripType type;
   final double price;
+  final double waitHours;
+  final double waitRate;
   final bool completed;
+
+  double get waitAmount => waitHours * waitRate;
+  double get totalPrice => price + waitAmount;
 
   Trip copyWith({
     int? id,
@@ -30,6 +37,8 @@ class Trip {
     String? title,
     TripType? type,
     double? price,
+    double? waitHours,
+    double? waitRate,
     bool? completed,
   }) {
     return Trip(
@@ -39,6 +48,8 @@ class Trip {
       title: title ?? this.title,
       type: type ?? this.type,
       price: price ?? this.price,
+      waitHours: waitHours ?? this.waitHours,
+      waitRate: waitRate ?? this.waitRate,
       completed: completed ?? this.completed,
     );
   }
@@ -51,6 +62,8 @@ class Trip {
       'title': title,
       'type': type.name,
       'price': price,
+      'wait_hours': waitHours,
+      'wait_rate': waitRate,
       'completed': completed ? 1 : 0,
     };
   }
@@ -65,6 +78,8 @@ class Trip {
         map['type']?.toString(),
       ),
       price: (map['price'] as num?)?.toDouble() ?? 0,
+      waitHours: (map['wait_hours'] as num?)?.toDouble() ?? 0,
+      waitRate: (map['wait_rate'] as num?)?.toDouble() ?? 0,
       completed: map['completed'] == 1,
     );
   }
