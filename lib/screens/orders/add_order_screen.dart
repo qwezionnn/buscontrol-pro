@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../models/app_settings.dart';
 import '../../models/order.dart';
-import '../../models/credit.dart';
 import '../../repositories/order_repository.dart';
 import '../../repositories/settings_repository.dart';
-import '../../repositories/credit_repository.dart';
 
 enum OrderFormType {
   hourly,
@@ -51,7 +49,6 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
   double _intercityRate = 55;
   int _reminderHours = 12;
   AppSettings _settings = AppSettings.defaults();
-  List<Credit> _credits = const [];
 
   double get _quantity {
     return double.tryParse(
@@ -73,14 +70,8 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
   double get _workFundAmount =>
       _amount * _settings.workFundPercent / 100;
 
-  double get _loanFundAmount => _credits.isEmpty
-      ? _amount * _settings.loanFundPercent / 100
-      : _credits
-          .where((credit) => !credit.archived && !credit.isClosed)
-          .fold<double>(
-            0,
-            (sum, credit) => sum + _amount * credit.incomePercent / 100,
-          );
+  double get _loanFundAmount =>
+      _amount * _settings.loanFundPercent / 100;
 
   double get _personalFundAmount =>
       _amount * _settings.personalFundPercent / 100;
@@ -136,14 +127,11 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
   Future<void> _loadDefaults() async {
     try {
       final settings = await _settingsRepository.getSettings();
-      final credits = await CreditRepository.instance.getCredits();
-
       if (!mounted) {
         return;
       }
 
       _settings = settings;
-      _credits = credits;
       _hourlyRate = settings.hourlyOrderRate;
       _intercityRate = settings.intercityOrderRate;
       _reminderHours = settings.orderReminderHours;
@@ -603,27 +591,13 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                         icon: Icons.build_outlined,
                       ),
                       const SizedBox(height: 12),
-                      if (_credits.isEmpty)
-                        _buildDistributionRow(
-                          title: 'На кредит',
-                          percent: _settings.loanFundPercent,
-                          amount: _loanFundAmount,
-                          icon: Icons.credit_card,
-                        )
-                      else
-                        for (final credit in _credits.where(
-                          (credit) => !credit.archived && !credit.isClosed,
-                        )) ...[
-                          _buildDistributionRow(
-                            title: credit.title,
-                            percent: credit.incomePercent,
-                            amount:
-                                _amount * credit.incomePercent / 100,
-                            icon: Icons.credit_card,
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                      if (_credits.isEmpty) const SizedBox(height: 12),
+                      _buildDistributionRow(
+                        title: 'На счёт Кредит',
+                        percent: _settings.loanFundPercent,
+                        amount: _loanFundAmount,
+                        icon: Icons.credit_card,
+                      ),
+                      const SizedBox(height: 12),
                       _buildDistributionRow(
                         title: 'Себе',
                         percent: _settings.personalFundPercent,

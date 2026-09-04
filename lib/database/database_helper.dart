@@ -41,7 +41,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 15,
+      version: 16,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -87,6 +87,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 15) {
       await _upgradeToVersion15(db);
+    }
+    if (oldVersion < 16) {
+      await _upgradeToVersion16(db);
     }
     await _createTables(db);
     await _insertDefaultSettings(db);
@@ -215,8 +218,7 @@ class DatabaseHelper {
         credit_percent REAL,
         personal_percent REAL,
         reserve_percent REAL,
-        note TEXT,
-        UNIQUE(vehicle_id, month)
+        note TEXT
       )
     ''');
 
@@ -582,7 +584,7 @@ class DatabaseHelper {
           'key': 'active_vehicle_id',
           'value': vehicles.first['id'].toString(),
         },
-        conflictAlgorithm: ConflictAlgorithm.replace,
+        conflictAlgorithm: ConflictAlgorithm.abort,
       );
     }
   }
@@ -732,6 +734,38 @@ class DatabaseHelper {
     if (!await _hasColumn(db, 'credit_payments', 'source_account')) {
       await db.execute("ALTER TABLE credit_payments ADD COLUMN source_account TEXT NOT NULL DEFAULT 'personal'");
     }
+  }
+
+
+  Future<void> _upgradeToVersion16(Database db) async {
+    // До v15 на один месяц разрешалась только одна выплата предприятия.
+    // Теперь выплаты могут приходить частями, поэтому убираем UNIQUE(month).
+    await db.execute('ALTER TABLE trip_payouts RENAME TO trip_payouts_v15');
+    await db.execute('''
+      CREATE TABLE trip_payouts(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vehicle_id INTEGER NOT NULL DEFAULT 1,
+        month TEXT NOT NULL,
+        gross_amount REAL NOT NULL,
+        received_at TEXT NOT NULL,
+        vehicle_percent REAL,
+        credit_percent REAL,
+        personal_percent REAL,
+        reserve_percent REAL,
+        note TEXT
+      )
+    ''');
+    await db.execute('''
+      INSERT INTO trip_payouts(
+        id, vehicle_id, month, gross_amount, received_at,
+        vehicle_percent, credit_percent, personal_percent, reserve_percent, note
+      )
+      SELECT
+        id, vehicle_id, month, gross_amount, received_at,
+        vehicle_percent, credit_percent, personal_percent, reserve_percent, note
+      FROM trip_payouts_v15
+    ''');
+    await db.execute('DROP TABLE trip_payouts_v15');
   }
 
   Future<int> getActiveVehicleId() async {
@@ -1022,13 +1056,15 @@ class DatabaseHelper {
     return db.transaction((transaction) async {
       final rows = await transaction.query(
         'credits',
-        columns: ['id'],
+        columns: ['remaining_amount'],
         where: 'id = ?',
         whereArgs: [creditId],
         limit: 1,
       );
       if (rows.isEmpty) throw StateError('Кредит не найден.');
-      final payment = amount;
+      final remaining =
+          (rows.first['remaining_amount'] as num).toDouble();
+      final payment = amount > remaining ? remaining : amount;
       final id = await transaction.insert('credit_payments', {
         'credit_id': creditId,
         'amount': payment,
@@ -1037,6 +1073,15 @@ class DatabaseHelper {
         'source_account': sourceAccount,
         'note': note?.trim(),
       });
+      await transaction.update(
+        'credits',
+        {
+          'remaining_amount': (remaining - payment).clamp(0, double.infinity),
+        },
+        where: 'id = ?',
+        whereArgs: [creditId],
+      );
+
       if (sourceAccount == 'vehicle' ||
           sourceAccount == 'credit' ||
           sourceAccount == 'reserve') {
@@ -1721,6 +1766,42 @@ class DatabaseHelper {
     );
   }
 
+  Future<void> updateTripPayout({
+    required int id,
+    required double grossAmount,
+    required double vehiclePercent,
+    required double creditPercent,
+    required double personalPercent,
+    required double reservePercent,
+    String? note,
+  }) async {
+    final db = await database;
+    final vehicleId = await getActiveVehicleId();
+    await db.update(
+      'trip_payouts',
+      {
+        'gross_amount': grossAmount,
+        'vehicle_percent': vehiclePercent,
+        'credit_percent': creditPercent,
+        'personal_percent': personalPercent,
+        'reserve_percent': reservePercent,
+        'note': note,
+      },
+      where: 'id = ? AND vehicle_id = ?',
+      whereArgs: [id, vehicleId],
+    );
+  }
+
+  Future<void> deleteTripPayoutById(int id) async {
+    final db = await database;
+    final vehicleId = await getActiveVehicleId();
+    await db.delete(
+      'trip_payouts',
+      where: 'id = ? AND vehicle_id = ?',
+      whereArgs: [id, vehicleId],
+    );
+  }
+
   Future<Map<String, Object?>?> getTripPayout(String month) async {
     final db = await database;
     final vehicleId = await getActiveVehicleId();
@@ -1740,7 +1821,7 @@ class DatabaseHelper {
       'trip_payouts',
       where: 'vehicle_id = ?',
       whereArgs: [vehicleId],
-      orderBy: 'month DESC',
+      orderBy: 'month DESC, received_at DESC, id DESC',
     );
   }
 

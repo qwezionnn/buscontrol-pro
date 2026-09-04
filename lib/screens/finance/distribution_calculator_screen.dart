@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../models/app_settings.dart';
-import '../../models/credit.dart';
-import '../../repositories/credit_repository.dart';
 import '../../repositories/settings_repository.dart';
 import '../../widgets/bus_card.dart';
 
@@ -49,40 +46,13 @@ class _DistributionCalculatorScreenState
   }
 
   Future<void> _loadDefaults() async {
-    final results = await Future.wait([
-      SettingsRepository.instance.getSettings(),
-      CreditRepository.instance.getCredits(),
-    ]);
-
-    final settings = results[0] as AppSettings;
-    final credits = (results[1] as List<Credit>)
-        .where((credit) => !credit.archived && !credit.isClosed)
-        .toList();
+    final settings = await SettingsRepository.instance.getSettings();
 
     _vehicleController.text = _formatPercent(settings.workFundPercent);
     _personalController.text = _formatPercent(settings.personalFundPercent);
-
-    if (credits.isEmpty) {
-      _creditControllers['Кредит'] = TextEditingController(
-        text: _formatPercent(settings.loanFundPercent),
-      );
-    } else {
-      var namedPercent = 0.0;
-      for (final credit in credits) {
-        namedPercent += credit.incomePercent;
-        _creditControllers[credit.title] = TextEditingController(
-          text: _formatPercent(credit.incomePercent),
-        );
-      }
-      final reserve = (settings.loanFundPercent - namedPercent)
-          .clamp(0, double.infinity)
-          .toDouble();
-      if (reserve > 0.001) {
-        _creditControllers['Кредитный резерв'] = TextEditingController(
-          text: _formatPercent(reserve),
-        );
-      }
-    }
+    _creditControllers['Кредит'] = TextEditingController(
+      text: _formatPercent(settings.loanFundPercent),
+    );
 
     if (mounted) {
       setState(() => _loading = false);

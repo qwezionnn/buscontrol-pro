@@ -7,7 +7,6 @@ import '../../../models/order.dart';
 import '../../../models/credit.dart';
 import '../../../repositories/order_repository.dart';
 import '../../../repositories/settings_repository.dart';
-import '../../../repositories/credit_repository.dart';
 import '../../../widgets/bus_card.dart';
 import '../../orders/add_order_screen.dart';
 import '../../orders/order_payment_screen.dart';
@@ -26,7 +25,6 @@ class _TodayOrdersSectionState extends State<TodayOrdersSection> {
 
   List<Order> _orders = [];
   AppSettings _settings = AppSettings.defaults();
-  List<Credit> _credits = const [];
   bool _isLoading = true;
 
   @override
@@ -46,12 +44,10 @@ class _TodayOrdersSectionState extends State<TodayOrdersSection> {
       final results = await Future.wait([
         _repository.getOrdersForDate(DateTime.now()),
         _settingsRepository.getSettings(),
-        CreditRepository.instance.getCredits(),
       ]);
 
       final orders = results[0] as List<Order>;
       final settings = results[1] as AppSettings;
-      final credits = results[2] as List<Credit>;
 
       if (!mounted) {
         return;
@@ -60,7 +56,6 @@ class _TodayOrdersSectionState extends State<TodayOrdersSection> {
       setState(() {
         _orders = orders;
         _settings = settings;
-        _credits = credits;
         _isLoading = false;
       });
     } catch (error) {

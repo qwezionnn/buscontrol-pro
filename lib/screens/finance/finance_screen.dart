@@ -11,6 +11,7 @@ import 'finance_detail_screen.dart';
 import 'credits_screen.dart';
 import 'distribution_calculator_screen.dart';
 import 'fund_transfer_screen.dart';
+import 'reserve_screen.dart';
 import 'notes_screen.dart';
 
 class FinanceScreen extends StatefulWidget {
@@ -30,7 +31,9 @@ class _FinanceScreenState extends State<FinanceScreen> {
   MonthReport? _report;
   AppSettings? _appSettings;
   FinancialSnapshot? _snapshot;
-  bool _tripPayoutReceived = false;
+  double _tripIncomeTarget = 0;
+  double _monthPayoutTotal = 0;
+  List<Map<String, Object?>> _monthPayouts = const [];
   bool _loading = true;
   bool _busy = false;
   List<double> _chartValues = const [];
@@ -52,7 +55,15 @@ class _FinanceScreenState extends State<FinanceScreen> {
     final report = await _reports.getMonthReport(_month);
     final settings = await _settings.getSettings();
     final snapshot = await _assistant.getSnapshot();
-    final payout = await _assistant.isTripPayoutReceived(_month);
+    final tripIncomeTarget = await _assistant.getTripIncomeTarget(
+      month: _month,
+      calculatedAmount: report.tripIncome,
+    );
+    final monthPayouts = await _assistant.getTripPayoutsForMonth(_month);
+    final monthPayoutTotal = monthPayouts.fold<double>(
+      0,
+      (sum, row) => sum + ((row['gross_amount'] as num?)?.toDouble() ?? 0),
+    );
 
     final values = <double>[];
     final labels = <String>[];
@@ -88,7 +99,9 @@ class _FinanceScreenState extends State<FinanceScreen> {
       _report = report;
       _appSettings = settings;
       _snapshot = snapshot;
-      _tripPayoutReceived = payout;
+      _tripIncomeTarget = tripIncomeTarget;
+      _monthPayouts = monthPayouts;
+      _monthPayoutTotal = monthPayoutTotal;
       _chartValues = values;
       _chartLabels = labels;
       _loading = false;
@@ -111,9 +124,12 @@ class _FinanceScreenState extends State<FinanceScreen> {
 
   Future<void> _receiveTripPayout() async {
     final report = _report;
-    if (report == null || report.tripIncome <= 0) return;
+    if (report == null || _tripIncomeTarget <= 0) return;
 
-    final amount = TextEditingController(text: report.tripIncome.toStringAsFixed(0));
+    final remaining = (_tripIncomeTarget - _monthPayoutTotal).clamp(0, double.infinity).toDouble();
+    final amount = TextEditingController(
+      text: (remaining > 0 ? remaining : _tripIncomeTarget).toStringAsFixed(0),
+    );
     final vehicle = TextEditingController(text: '30');
     final credit = TextEditingController(text: '35');
     final personal = TextEditingController(text: '25');
@@ -123,7 +139,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     final result = await showDialog<Map<String, double>>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Получена выплата предприятия'),
+        title: const Text('Предприятие выплатило'),
         content: StatefulBuilder(
           builder: (context, setLocal) {
             double value(TextEditingController c) =>
@@ -137,8 +153,15 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 children: [
                   SegmentedButton<bool>(segments: const [ButtonSegment(value:false,label:Text('% Проценты')),ButtonSegment(value:true,label:Text('₽ Суммы'))], selected:{amountMode}, onSelectionChanged:(v)=>setLocal((){amountMode=v.first;})),
                   const SizedBox(height: 8),
+                  Text(
+                    remaining > 0
+                        ? 'Осталось получить: ${_money(remaining)}. Можно указать всю сумму или только полученную часть.'
+                        : 'Вся ожидаемая сумма уже отмечена полученной. При необходимости можно добавить ещё выплату.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 8),
                   TextField(controller: amount, keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Полученная сумма', suffixText: '₽')),
+                    decoration: const InputDecoration(labelText: 'Сколько выплатили сейчас', suffixText: '₽')),
                   TextField(controller: vehicle, keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     onChanged: (_) => setLocal(() {}), decoration: InputDecoration(labelText: 'Автобус', suffixText: amountMode ? '₽' : '%')),
                   TextField(controller: credit, keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -169,7 +192,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
               double p(TextEditingController c) => amountMode ? (v(c)/a*100) : v(c);
               Navigator.pop(context, {'amount': a, 'vehicle': p(vehicle), 'credit': p(credit), 'personal': p(personal), 'reserve': p(reserve)});
             },
-            child: const Text('Получил и распределить'),
+            child: const Text('Сохранить выплату'),
           ),
         ],
       ),
@@ -184,6 +207,182 @@ class _FinanceScreenState extends State<FinanceScreen> {
       creditPercent: result['credit'],
       personalPercent: result['personal'],
       reservePercent: result['reserve'],
+    );
+    await _load();
+  }
+
+  Future<void> _editTripIncomeTarget() async {
+    final controller = TextEditingController(
+      text: _tripIncomeTarget.toStringAsFixed(0),
+    );
+    final result = await showDialog<double>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Сумма от предприятия'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Укажи сколько предприятие должно выплатить за этот месяц. '
+              'Сумму можно менять вручную, например если часть рейсов была на другом автобусе с другой ценой.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Начислено предприятием',
+                suffixText: '₽',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = double.tryParse(
+                controller.text.replaceAll(',', '.').trim(),
+              );
+              if (value == null || value < 0) return;
+              Navigator.pop(context, value);
+            },
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null) return;
+    await _assistant.setTripIncomeTarget(month: _month, amount: result);
+    await _load();
+  }
+
+  Future<void> _editTripPayout(Map<String, Object?> payout) async {
+    final id = (payout['id'] as num?)?.toInt();
+    if (id == null) return;
+    final amountController = TextEditingController(
+      text: ((payout['gross_amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(0),
+    );
+    final vehicleController = TextEditingController(
+      text: ((payout['vehicle_percent'] as num?)?.toDouble() ?? 0).toStringAsFixed(1),
+    );
+    final creditController = TextEditingController(
+      text: ((payout['credit_percent'] as num?)?.toDouble() ?? 0).toStringAsFixed(1),
+    );
+    final personalController = TextEditingController(
+      text: ((payout['personal_percent'] as num?)?.toDouble() ?? 0).toStringAsFixed(1),
+    );
+    final reserveController = TextEditingController(
+      text: ((payout['reserve_percent'] as num?)?.toDouble() ?? 0).toStringAsFixed(1),
+    );
+
+    final result = await showDialog<Map<String, double>>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Редактировать выплату'),
+        content: StatefulBuilder(
+          builder: (context, setLocal) {
+            double parse(TextEditingController c) =>
+                double.tryParse(c.text.replaceAll(',', '.')) ?? 0;
+            final total = parse(vehicleController) +
+                parse(creditController) +
+                parse(personalController) +
+                parse(reserveController);
+            final valid = (total - 100).abs() <= 0.01;
+            return SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: amountController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Полученная сумма',
+                      suffixText: '₽',
+                    ),
+                  ),
+                  TextField(
+                    controller: vehicleController,
+                    onChanged: (_) => setLocal(() {}),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Автобус', suffixText: '%'),
+                  ),
+                  TextField(
+                    controller: creditController,
+                    onChanged: (_) => setLocal(() {}),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Кредит', suffixText: '%'),
+                  ),
+                  TextField(
+                    controller: personalController,
+                    onChanged: (_) => setLocal(() {}),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Личные', suffixText: '%'),
+                  ),
+                  TextField(
+                    controller: reserveController,
+                    onChanged: (_) => setLocal(() {}),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Заначка', suffixText: '%'),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    valid ? 'Итого: 100%' : 'Итого: ${total.toStringAsFixed(1)}% — должно быть 100%',
+                    style: TextStyle(
+                      color: valid ? null : Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
+          FilledButton(
+            onPressed: () {
+              double parse(TextEditingController c) =>
+                  double.tryParse(c.text.replaceAll(',', '.')) ?? 0;
+              final amount = parse(amountController);
+              final v = parse(vehicleController);
+              final c = parse(creditController);
+              final p = parse(personalController);
+              final r = parse(reserveController);
+              if (amount <= 0 || (v + c + p + r - 100).abs() > 0.01) return;
+              Navigator.pop(context, {
+                'amount': amount,
+                'vehicle': v,
+                'credit': c,
+                'personal': p,
+                'reserve': r,
+              });
+            },
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
+
+    amountController.dispose();
+    vehicleController.dispose();
+    creditController.dispose();
+    personalController.dispose();
+    reserveController.dispose();
+    if (result == null) return;
+    await _assistant.updateTripPayout(
+      id: id,
+      amount: result['amount']!,
+      vehiclePercent: result['vehicle']!,
+      creditPercent: result['credit']!,
+      personalPercent: result['personal']!,
+      reservePercent: result['reserve']!,
+      note: payout['note']?.toString(),
     );
     await _load();
   }
@@ -434,13 +633,44 @@ class _FinanceScreenState extends State<FinanceScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Кредиты',
+                          'Счёт Кредит',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        Text('Несколько кредитов и отдельный процент для каждого'),
+                        Text('Накопление денег и простая оплата кредита'),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            BusCard(
+              onTap: () async {
+                await Navigator.of(context).push<void>(
+                  MaterialPageRoute(builder: (_) => const ReserveScreen()),
+                );
+                await _load();
+              },
+              child: const Row(
+                children: [
+                  Icon(Icons.savings_outlined, size: 34),
+                  SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Заначка',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text('Баланс, пополнение, снятие и история'),
                       ],
                     ),
                   ),
@@ -506,7 +736,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                           ),
                         ),
                         Text(
-                          'Автобус ↔ кредиты ↔ личные деньги',
+                          'Автобус ↔ Кредит ↔ Заначка ↔ личные',
                         ),
                       ],
                     ),
@@ -561,7 +791,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                     ),
                     const SizedBox(height: 10),
                     _row('Автобус', snapshot.vehicleCash, strong: true),
-                    _row('Кредиты', snapshot.creditCash, strong: true),
+                    _row('Кредит', snapshot.creditCash, strong: true),
                     _row('Заработал себе (всего)', snapshot.personalFund, strong: true),
                     _row('Заначка', snapshot.reserveCash, strong: true),
                     if (snapshot.reserveDebt > 0)
@@ -611,43 +841,74 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Выплата за рейсы',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    _row('Начислено за месяц', report.tripIncome),
-                    if (_tripPayoutReceived)
-                      const Row(
-                        children: [
-                          Icon(Icons.check_circle, color: Colors.green),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Выплата получена и доступна для распределения.',
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Выплата от предприятия',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                        ],
-                      )
-                    else ...[
-                      const Text(
-                        'Эти деньги пока не входят в доступную кассу и '
-                        'не распределяются между фондами.',
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: report.tripIncome > 0
-                              ? _receiveTripPayout
-                              : null,
-                          icon: const Icon(Icons.payments_outlined),
-                          label: const Text('Я получил выплату'),
                         ),
+                        IconButton(
+                          tooltip: 'Изменить начисленную сумму',
+                          onPressed: _editTripIncomeTarget,
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                      ],
+                    ),
+                    _row('Начислено предприятием', _tripIncomeTarget),
+                    _row('Уже выплачено', _monthPayoutTotal),
+                    _row(
+                      'Осталось получить',
+                      (_tripIncomeTarget - _monthPayoutTotal)
+                          .clamp(0, double.infinity)
+                          .toDouble(),
+                      strong: true,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Можно отмечать выплату частями. Каждая полученная часть '
+                      'сразу распределяется по выбранным счетам.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _tripIncomeTarget > 0 ? _receiveTripPayout : null,
+                        icon: const Icon(Icons.payments_outlined),
+                        label: const Text('Предприятие выплатило'),
                       ),
+                    ),
+                    if (_monthPayouts.isNotEmpty) ...[
+                      const Divider(height: 28),
+                      const Text(
+                        'История выплат за месяц',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 6),
+                      for (final payout in _monthPayouts)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          leading: const Icon(Icons.account_balance_wallet_outlined),
+                          title: Text(_money(
+                            (payout['gross_amount'] as num?)?.toDouble() ?? 0,
+                          )),
+                          subtitle: Text(
+                            payout['received_at']?.toString() ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: IconButton(
+                            tooltip: 'Редактировать выплату',
+                            onPressed: () => _editTripPayout(payout),
+                            icon: const Icon(Icons.edit_outlined),
+                          ),
+                        ),
                     ],
                   ],
                 ),
@@ -731,8 +992,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
               const SizedBox(height: 16),
               Builder(
                 builder: (context) {
-                  final availableTripIncome =
-                      _tripPayoutReceived ? report.tripIncome : 0.0;
+                  final availableTripIncome = _monthPayoutTotal;
                   final available =
                       report.orderIncome + availableTripIncome;
                   final vehicle =
@@ -781,12 +1041,12 @@ class _FinanceScreenState extends State<FinanceScreen> {
                           '(${_number(settings.personalFundPercent)}%)',
                           personal,
                         ),
-                        if (!_tripPayoutReceived &&
-                            report.tripIncome > 0) ...[
+                        if (_monthPayoutTotal + 0.005 < _tripIncomeTarget &&
+                            _tripIncomeTarget > 0) ...[
                           const SizedBox(height: 10),
                           const Text(
-                            'Подсказка: начисление за рейсы не распределено, '
-                            'потому что выплата ещё не отмечена полученной.',
+                            'Подсказка: в фонды попадает только фактически '
+                            'полученная от предприятия сумма.',
                             style: TextStyle(fontWeight: FontWeight.w600),
                           ),
                         ],

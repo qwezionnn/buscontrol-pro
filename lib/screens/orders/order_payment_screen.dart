@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../models/app_settings.dart';
-import '../../models/credit.dart';
 import '../../models/order.dart';
-import '../../repositories/credit_repository.dart';
 import '../../repositories/order_repository.dart';
 import '../../repositories/settings_repository.dart';
 import '../../widgets/bus_card.dart';
@@ -74,50 +71,16 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
   }
 
   Future<void> _load() async {
-    final results = await Future.wait([
-      SettingsRepository.instance.getSettings(),
-      CreditRepository.instance.getCredits(),
-    ]);
-
-    final settings = results[0] as AppSettings;
-    final credits = (results[1] as List<Credit>)
-        .where((credit) => !credit.archived && !credit.isClosed)
-        .toList();
+    final settings = await SettingsRepository.instance.getSettings();
 
     _vehiclePercentController.text =
         _formatPercent(settings.workFundPercent);
     _personalPercentController.text =
         _formatPercent(settings.personalFundPercent);
-
-    if (credits.isEmpty) {
-      _creditPercentControllers['Кредит'] = TextEditingController(
-        text: _formatPercent(settings.loanFundPercent),
-      );
-      _creditAmountControllers['Кредит'] = TextEditingController();
-    } else {
-      var named = 0.0;
-
-      for (final credit in credits) {
-        named += credit.incomePercent;
-        _creditPercentControllers[credit.title] = TextEditingController(
-          text: _formatPercent(credit.incomePercent),
-        );
-        _creditAmountControllers[credit.title] = TextEditingController();
-      }
-
-      final reserve = (settings.loanFundPercent - named)
-          .clamp(0, double.infinity)
-          .toDouble();
-
-      if (reserve > 0.001) {
-        _creditPercentControllers['Кредитный резерв'] =
-            TextEditingController(
-          text: _formatPercent(reserve),
-        );
-        _creditAmountControllers['Кредитный резерв'] =
-            TextEditingController();
-      }
-    }
+    _creditPercentControllers['Кредит'] = TextEditingController(
+      text: _formatPercent(settings.loanFundPercent),
+    );
+    _creditAmountControllers['Кредит'] = TextEditingController();
 
     _syncAllAmountsFromPercents();
 

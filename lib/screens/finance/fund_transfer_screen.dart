@@ -24,7 +24,7 @@ class _FundTransferScreenState extends State<FundTransferScreen> {
 
   static const _names = <String, String>{
     'vehicle': 'Автобус',
-    'credit': 'Кредиты',
+    'credit': 'Кредит',
     'personal': 'Личные',
     'reserve': 'Заначка',
     'adjustment': 'Корректировка',
