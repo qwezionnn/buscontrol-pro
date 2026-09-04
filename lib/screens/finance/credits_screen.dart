@@ -251,7 +251,8 @@ class _CreditsScreenState extends State<CreditsScreen> {
                         subtitle: Text(
                           '${credit.incomePercent.toStringAsFixed(1)}% с дохода\n'
                           '${_vehicleName(credit.vehicleId)}\n'
-                          'Остаток: ${_money(credit.remainingAmount)}'
+                          '${credit.monthlyPayment == null ? 'Плановый платёж не указан' : 'Плановый платёж: ${_money(credit.monthlyPayment!)}'}'
+                          '${credit.paymentDay == null ? '' : '\nДень платежа: ${credit.paymentDay}'}'
                           '${credit.archived ? '\nВ архиве' : ''}',
                         ),
                         isThreeLine: false,
@@ -339,8 +340,6 @@ class _CreditEditDialog extends StatefulWidget {
 
 class _CreditEditDialogState extends State<_CreditEditDialog> {
   late final TextEditingController _title;
-  late final TextEditingController _initial;
-  late final TextEditingController _remaining;
   late final TextEditingController _percent;
   late final TextEditingController _monthly;
   late final TextEditingController _day;
@@ -353,12 +352,6 @@ class _CreditEditDialogState extends State<_CreditEditDialog> {
     super.initState();
     final credit = widget.credit;
     _title = TextEditingController(text: credit?.title ?? '');
-    _initial = TextEditingController(
-      text: credit?.initialAmount.toStringAsFixed(0) ?? '',
-    );
-    _remaining = TextEditingController(
-      text: credit?.remainingAmount.toStringAsFixed(0) ?? '',
-    );
     _percent = TextEditingController(
       text: credit?.incomePercent.toStringAsFixed(1) ?? '',
     );
@@ -375,8 +368,6 @@ class _CreditEditDialogState extends State<_CreditEditDialog> {
   @override
   void dispose() {
     _title.dispose();
-    _initial.dispose();
-    _remaining.dispose();
     _percent.dispose();
     _monthly.dispose();
     _day.dispose();
@@ -390,12 +381,7 @@ class _CreditEditDialogState extends State<_CreditEditDialog> {
 
   void _save() {
     final title = _title.text.trim();
-    final initial = _parseDouble(_initial.text);
     final percent = _parseDouble(_percent.text);
-    final remainingText = _remaining.text.trim();
-    final remaining = remainingText.isEmpty
-        ? initial
-        : _parseDouble(remainingText);
     final monthly = _monthly.text.trim().isEmpty
         ? null
         : _parseDouble(_monthly.text);
@@ -405,14 +391,6 @@ class _CreditEditDialogState extends State<_CreditEditDialog> {
 
     if (title.isEmpty) {
       setState(() => _error = 'Введите название кредита.');
-      return;
-    }
-    if (initial == null || initial < 0) {
-      setState(() => _error = 'Проверьте первоначальную сумму.');
-      return;
-    }
-    if (remaining == null || remaining < 0) {
-      setState(() => _error = 'Проверьте остаток кредита.');
       return;
     }
     if (percent == null || percent < 0 || percent > 100) {
@@ -431,8 +409,8 @@ class _CreditEditDialogState extends State<_CreditEditDialog> {
     Navigator.of(context).pop(
       _CreditDraft(
         title: title,
-        initialAmount: initial,
-        remainingAmount: remaining,
+        initialAmount: widget.credit?.initialAmount ?? 0,
+        remainingAmount: widget.credit?.remainingAmount ?? 0,
         incomePercent: percent,
         monthlyPayment: monthly,
         paymentDay: day,
@@ -457,24 +435,6 @@ class _CreditEditDialogState extends State<_CreditEditDialog> {
               TextField(
                 controller: _title,
                 decoration: const InputDecoration(labelText: 'Название'),
-              ),
-              TextField(
-                controller: _initial,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  labelText: 'Первоначальная сумма',
-                  suffixText: '₽',
-                ),
-              ),
-              TextField(
-                controller: _remaining,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  labelText: 'Остаток',
-                  suffixText: '₽',
-                ),
               ),
               TextField(
                 controller: _percent,
@@ -646,8 +606,9 @@ class _CreditPaymentDialogState extends State<_CreditPaymentDialog> {
               decoration: InputDecoration(
                 labelText: 'Сумма',
                 suffixText: '₽',
-                helperText:
-                    'Остаток: ${widget.credit.remainingAmount.toStringAsFixed(0)} ₽',
+                helperText: widget.credit.monthlyPayment == null
+                    ? 'Введите фактическую сумму платежа'
+                    : 'Плановый платёж: ${widget.credit.monthlyPayment!.toStringAsFixed(0)} ₽',
               ),
             ),
             const SizedBox(height: 10),

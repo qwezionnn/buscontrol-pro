@@ -34,7 +34,7 @@ class _TodayCreditPaymentSectionState
     final credits = await _repo.getCredits();
     if (!mounted) return;
     setState(() {
-      _credits = credits.where((x) => !x.archived && !x.isClosed).toList();
+      _credits = credits.where((x) => !x.archived).toList();
     });
   }
 
@@ -165,7 +165,11 @@ class _TodayCreditPaymentSectionState
               child: ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(credit.title),
-                subtitle: Text('Остаток: ${_money(credit.remainingAmount)}'),
+                subtitle: Text(
+                  credit.monthlyPayment == null
+                      ? 'Плановый платёж не указан'
+                      : 'Плановый платёж: ${_money(credit.monthlyPayment!)}',
+                ),
                 trailing: FilledButton(
                   onPressed: () => _pay(credit),
                   child: const Text('Заплатить'),

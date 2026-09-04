@@ -1022,15 +1022,13 @@ class DatabaseHelper {
     return db.transaction((transaction) async {
       final rows = await transaction.query(
         'credits',
-        columns: ['remaining_amount'],
+        columns: ['id'],
         where: 'id = ?',
         whereArgs: [creditId],
         limit: 1,
       );
       if (rows.isEmpty) throw StateError('Кредит не найден.');
-      final remaining =
-          (rows.first['remaining_amount'] as num).toDouble();
-      final payment = amount > remaining ? remaining : amount;
+      final payment = amount;
       final id = await transaction.insert('credit_payments', {
         'credit_id': creditId,
         'amount': payment,
@@ -1039,15 +1037,6 @@ class DatabaseHelper {
         'source_account': sourceAccount,
         'note': note?.trim(),
       });
-      await transaction.update(
-        'credits',
-        {
-          'remaining_amount': (remaining - payment).clamp(0, double.infinity),
-        },
-        where: 'id = ?',
-        whereArgs: [creditId],
-      );
-
       if (sourceAccount == 'vehicle' ||
           sourceAccount == 'credit' ||
           sourceAccount == 'reserve') {

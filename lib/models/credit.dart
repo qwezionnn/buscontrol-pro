@@ -27,7 +27,9 @@ class Credit {
   final String? note;
   final bool archived;
 
-  bool get isClosed => remainingAmount <= 0.001;
+  // Остаток банковского кредита в BusControl больше не ведём.
+  // Закрытие кредита пользователь делает вручную через архив.
+  bool get isClosed => false;
 
   factory Credit.fromMap(Map<String, Object?> map) {
     return Credit(
