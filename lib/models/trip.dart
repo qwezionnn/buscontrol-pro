@@ -14,6 +14,8 @@ class Trip {
     required this.price,
     this.waitHours = 0,
     this.waitRate = 0,
+    this.priceOverridden = false,
+    this.priceNote,
     this.completed = false,
   });
 
@@ -25,6 +27,8 @@ class Trip {
   final double price;
   final double waitHours;
   final double waitRate;
+  final bool priceOverridden;
+  final String? priceNote;
   final bool completed;
 
   double get waitAmount => waitHours * waitRate;
@@ -39,6 +43,8 @@ class Trip {
     double? price,
     double? waitHours,
     double? waitRate,
+    bool? priceOverridden,
+    String? priceNote,
     bool? completed,
   }) {
     return Trip(
@@ -50,6 +56,8 @@ class Trip {
       price: price ?? this.price,
       waitHours: waitHours ?? this.waitHours,
       waitRate: waitRate ?? this.waitRate,
+      priceOverridden: priceOverridden ?? this.priceOverridden,
+      priceNote: priceNote ?? this.priceNote,
       completed: completed ?? this.completed,
     );
   }
@@ -64,6 +72,8 @@ class Trip {
       'price': price,
       'wait_hours': waitHours,
       'wait_rate': waitRate,
+      'price_overridden': priceOverridden ? 1 : 0,
+      'price_note': priceNote,
       'completed': completed ? 1 : 0,
     };
   }
@@ -80,6 +90,8 @@ class Trip {
       price: (map['price'] as num?)?.toDouble() ?? 0,
       waitHours: (map['wait_hours'] as num?)?.toDouble() ?? 0,
       waitRate: (map['wait_rate'] as num?)?.toDouble() ?? 0,
+      priceOverridden: map['price_overridden'] == 1,
+      priceNote: map['price_note']?.toString(),
       completed: map['completed'] == 1,
     );
   }

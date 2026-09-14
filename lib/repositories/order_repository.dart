@@ -61,6 +61,8 @@ class OrderRepository {
       rate: order.rate,
       amount: order.amount,
       reminderHours: order.reminderHours,
+      firstReminderMinutes: order.firstReminderMinutes,
+      liveActivityMinutes: order.liveActivityMinutes,
       note: order.note,
     );
     await NotificationService.instance.scheduleOrder(order.copyWith(id: id));
@@ -83,6 +85,8 @@ class OrderRepository {
       rate: order.rate,
       amount: order.amount,
       reminderHours: order.reminderHours,
+      firstReminderMinutes: order.firstReminderMinutes,
+      liveActivityMinutes: order.liveActivityMinutes,
       note: order.note,
     );
     await NotificationService.instance.scheduleOrder(order);

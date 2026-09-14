@@ -390,6 +390,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
               ),
               onTap: () => Navigator.pop(sheetContext, 'toggle'),
             ),
+            if (!isExtra) ...[
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.settings_outlined),
+                title: const Text('Изменить цену рейса'),
+                subtitle: Text(row['price_note']?.toString().trim().isNotEmpty == true ? row['price_note'].toString() : 'Например: другой автобус'),
+                onTap: () => Navigator.pop(sheetContext, 'edit_price'),
+              ),
+            ],
             if (isExtra) ...[
               const Divider(height: 1),
               ListTile(
@@ -414,6 +423,34 @@ class _CalendarScreenState extends State<CalendarScreen> {
         completed: !completed,
       );
       await _load();
+      return;
+    }
+
+    if (action == 'edit_price' && !isExtra) {
+      final priceController = TextEditingController(text: ((row['price'] as num?)?.toDouble() ?? 0).toStringAsFixed(0));
+      final noteController = TextEditingController(text: row['price_note']?.toString() ?? '');
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: Text(type == 'morning' ? 'Утренний рейс' : 'Вечерний рейс'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: priceController, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Фактическая цена', suffixText: '₽')),
+            TextField(controller: noteController, decoration: const InputDecoration(labelText: 'Комментарий', hintText: 'Другой автобус')),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Отмена')),
+            FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Сохранить')),
+          ],
+        ),
+      );
+      if (ok == true) {
+        final value = double.tryParse(priceController.text.trim().replaceAll(',', '.'));
+        if (value != null && value > 0) {
+          await TripRepository.instance.editStandardTrip(tripId: id, price: value, note: noteController.text);
+          await _load();
+        }
+      }
+      priceController.dispose(); noteController.dispose();
       return;
     }
 

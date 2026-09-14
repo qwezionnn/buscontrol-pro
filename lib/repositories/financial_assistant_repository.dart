@@ -81,10 +81,17 @@ class FinancialAssistantRepository {
     var personalFund = 0.0;
     var reserveFund = 0.0;
 
-    void applyDefaultDistribution(double amount) {
+    final now = DateTime.now();
+    bool isCurrentMonth(Object? raw) {
+      final text = raw?.toString() ?? '';
+      final date = DateTime.tryParse(text);
+      return date != null && date.year == now.year && date.month == now.month;
+    }
+
+    void applyDefaultDistribution(double amount, {bool includePersonal = true}) {
       vehicleFund += amount * settings.workFundPercent / 100;
       creditFund += amount * settings.loanFundPercent / 100;
-      personalFund += amount * settings.personalFundPercent / 100;
+      if (includePersonal) personalFund += amount * settings.personalFundPercent / 100;
     }
 
     double creditPercentFromDistribution(String? raw) {
@@ -107,6 +114,7 @@ class FinancialAssistantRepository {
     for (final payment in payments) {
       final amount = (payment['amount'] as num?)?.toDouble() ?? 0;
       orderIncome += amount;
+      final personalThisMonth = isCurrentMonth(payment['paid_at']);
 
       final vehiclePercent =
           (payment['vehicle_percent'] as num?)?.toDouble();
@@ -120,12 +128,12 @@ class FinancialAssistantRepository {
           personalPercent == null ||
           rawCredits == null ||
           rawCredits.trim().isEmpty) {
-        applyDefaultDistribution(amount);
+        applyDefaultDistribution(amount, includePersonal: personalThisMonth);
         continue;
       }
 
       vehicleFund += amount * vehiclePercent / 100;
-      personalFund += amount * personalPercent / 100;
+      if (personalThisMonth) personalFund += amount * personalPercent / 100;
       reserveFund += amount * reservePercent / 100;
       creditFund += amount * creditPercentFromDistribution(rawCredits) / 100;
     }
@@ -150,12 +158,13 @@ class FinancialAssistantRepository {
       final cp = (payout['credit_percent'] as num?)?.toDouble();
       final pp = (payout['personal_percent'] as num?)?.toDouble();
       final rp = (payout['reserve_percent'] as num?)?.toDouble();
+      final personalThisMonth = isCurrentMonth(payout['received_at'] ?? payout['month']);
       if (vp == null || cp == null || pp == null || rp == null) {
-        applyDefaultDistribution(amount);
+        applyDefaultDistribution(amount, includePersonal: personalThisMonth);
       } else {
         vehicleFund += amount * vp / 100;
         creditFund += amount * cp / 100;
-        personalFund += amount * pp / 100;
+        if (personalThisMonth) personalFund += amount * pp / 100;
         reserveFund += amount * rp / 100;
       }
     }

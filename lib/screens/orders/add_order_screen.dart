@@ -48,6 +48,8 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
   double _hourlyRate = 2000;
   double _intercityRate = 55;
   int _reminderHours = 12;
+  int _firstReminderMinutes = 720;
+  int _liveActivityMinutes = 60;
   AppSettings _settings = AppSettings.defaults();
 
   double get _quantity {
@@ -88,6 +90,8 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     if (order != null) {
       _titleController.text = order.title;
       _noteController.text = order.note ?? '';
+      _firstReminderMinutes = order.firstReminderMinutes;
+      _liveActivityMinutes = order.liveActivityMinutes;
       _selectedDate = DateTime.tryParse(order.date) ?? _selectedDate;
       final timeParts = order.time.split(':');
       if (timeParts.length >= 2) {
@@ -135,6 +139,10 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
       _hourlyRate = settings.hourlyOrderRate;
       _intercityRate = settings.intercityOrderRate;
       _reminderHours = settings.orderReminderHours;
+      if (widget.order == null) {
+        _firstReminderMinutes = 720;
+        _liveActivityMinutes = settings.orderReminderHours * 60;
+      }
 
       if (widget.order == null) {
         _rateController.text = _formatNumber(_hourlyRate);
@@ -272,6 +280,8 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
         rate: _rate,
         amount: _amount,
         reminderHours: _reminderHours,
+        firstReminderMinutes: _firstReminderMinutes,
+        liveActivityMinutes: _liveActivityMinutes,
         note: _noteController.text.trim().isEmpty
             ? null
             : _noteController.text.trim(),
@@ -349,6 +359,62 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
         ),
       ],
     );
+  }
+
+  String _reminderLabel(int minutes) {
+    if (minutes % 60 == 0) return 'за ${minutes ~/ 60} ч';
+    if (minutes > 60) return 'за ${minutes ~/ 60} ч ${minutes % 60} мин';
+    return 'за $minutes мин';
+  }
+
+  Future<int?> _customReminder(int current) async {
+    final controller = TextEditingController(text: current.toString());
+    final result = await showDialog<int>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Своё время'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'За сколько минут предупредить', suffixText: 'мин'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Отмена')),
+          FilledButton(onPressed: () {
+            final value = int.tryParse(controller.text.trim());
+            if (value != null && value > 0) Navigator.pop(c, value);
+          }, child: const Text('Готово')),
+        ],
+      ),
+    );
+    controller.dispose();
+    return result;
+  }
+
+  Widget _reminderPicker({
+    required String label,
+    required int value,
+    required List<int> values,
+    required ValueChanged<int> onChanged,
+  }) {
+    final all = {...values, value}.toList()..sort();
+    return Row(children: [
+      Expanded(child: DropdownButtonFormField<int>(
+        initialValue: value,
+        decoration: InputDecoration(labelText: label),
+        items: all.map((v) => DropdownMenuItem(value: v, child: Text(_reminderLabel(v)))).toList(),
+        onChanged: (v) { if (v != null) onChanged(v); },
+      )),
+      IconButton(
+        tooltip: 'Задать своё время',
+        icon: const Icon(Icons.tune),
+        onPressed: () async {
+          final custom = await _customReminder(value);
+          if (custom != null) onChanged(custom);
+        },
+      ),
+    ]);
   }
 
   @override
@@ -611,11 +677,29 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
 
               const SizedBox(height: 12),
 
+              const Divider(height: 28),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('🔔 Напоминания', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              ),
+              const SizedBox(height: 10),
+              _reminderPicker(
+                label: 'Первое уведомление',
+                value: _firstReminderMinutes,
+                values: const [360, 720, 1440],
+                onChanged: (v) => setState(() => _firstReminderMinutes = v),
+              ),
+              const SizedBox(height: 10),
+              _reminderPicker(
+                label: 'Live Activity / второе',
+                value: _liveActivityMinutes,
+                values: const [30, 60, 90, 120, 180],
+                onChanged: (v) => setState(() => _liveActivityMinutes = v),
+              ),
+              const SizedBox(height: 6),
               Text(
-                'Напоминание: за $_reminderHours ч',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium,
+                'Второе время задаётся отдельно для каждого заказа. На iPhone оно используется как момент начала отсчёта Live Activity.',
+                style: Theme.of(context).textTheme.bodySmall,
               ),
 
               const SizedBox(height: 20),

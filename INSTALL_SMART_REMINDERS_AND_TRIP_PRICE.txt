@@ -1,0 +1,23 @@
+BusControl PRO — smart reminders + actual trip price
+
+Database v17:
+- orders.first_reminder_minutes
+- orders.live_activity_minutes
+- trips.price_overridden
+- trips.price_note
+
+What changed:
+1. Each order has two independently configurable reminder intervals, including custom minutes.
+2. Reminder notification includes order title, time and note/address.
+3. Morning/evening trips keep one-tap completion. Gear icon edits actual price + comment.
+4. Calendar can edit the same actual price/comment.
+5. Custom standard-trip price is no longer overwritten by the global default when the day reloads.
+6. Monthly summary keeps the trip as a normal morning/evening trip and shows the comment in brackets.
+7. "Earned for myself" is calculated for the current calendar month; bus/credit/reserve remain cumulative.
+
+IMPORTANT ABOUT iPHONE LIVE ACTIVITY:
+iOS cannot reliably start a Live Activity at a future local time from a scheduled local notification.
+Automatic push-to-start requires APNs push-to-start plus a server/provider and Apple signing credentials.
+This archive therefore implements the two reliable local reminders and stores the per-order Live Activity lead time,
+but does NOT pretend to auto-start a Live Activity while the app is fully closed. The native Live Activity target
+should be added only together with an APNs provider, otherwise the feature would be unreliable.

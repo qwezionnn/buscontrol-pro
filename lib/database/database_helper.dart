@@ -41,7 +41,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 16,
+      version: 17,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -91,6 +91,9 @@ class DatabaseHelper {
     if (oldVersion < 16) {
       await _upgradeToVersion16(db);
     }
+    if (oldVersion < 17) {
+      await _upgradeToVersion17(db);
+    }
     await _createTables(db);
     await _insertDefaultSettings(db);
     await _ensureDefaultVehicle(db);
@@ -125,6 +128,8 @@ class DatabaseHelper {
         price REAL NOT NULL,
         wait_hours REAL NOT NULL DEFAULT 0,
         wait_rate REAL NOT NULL DEFAULT 0,
+        price_overridden INTEGER NOT NULL DEFAULT 0,
+        price_note TEXT,
         completed INTEGER NOT NULL DEFAULT 0
       )
     ''');
@@ -144,6 +149,8 @@ class DatabaseHelper {
         status TEXT NOT NULL DEFAULT 'planned',
         paid INTEGER NOT NULL DEFAULT 0,
         reminder_hours INTEGER NOT NULL DEFAULT 12,
+        first_reminder_minutes INTEGER NOT NULL DEFAULT 720,
+        live_activity_minutes INTEGER NOT NULL DEFAULT 60,
         note TEXT
       )
     ''');
@@ -768,6 +775,22 @@ class DatabaseHelper {
     await db.execute('DROP TABLE trip_payouts_v15');
   }
 
+
+  Future<void> _upgradeToVersion17(Database db) async {
+    if (!await _hasColumn(db, 'trips', 'price_overridden')) {
+      await db.execute('ALTER TABLE trips ADD COLUMN price_overridden INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!await _hasColumn(db, 'trips', 'price_note')) {
+      await db.execute('ALTER TABLE trips ADD COLUMN price_note TEXT');
+    }
+    if (!await _hasColumn(db, 'orders', 'first_reminder_minutes')) {
+      await db.execute('ALTER TABLE orders ADD COLUMN first_reminder_minutes INTEGER NOT NULL DEFAULT 720');
+    }
+    if (!await _hasColumn(db, 'orders', 'live_activity_minutes')) {
+      await db.execute('ALTER TABLE orders ADD COLUMN live_activity_minutes INTEGER NOT NULL DEFAULT 60');
+    }
+  }
+
   Future<int> getActiveVehicleId() async {
     final value = await getSetting('active_vehicle_id');
     return int.tryParse(value ?? '') ?? 1;
@@ -1300,9 +1323,24 @@ class DatabaseHelper {
       throw ArgumentError('Стоимость рейса должна быть больше нуля.');
     }
     final db = await database;
+    await db.update('trips', {'price': price}, where: 'id = ?', whereArgs: [tripId]);
+  }
+
+  Future<void> updateStandardTripActualPrice({
+    required int tripId,
+    required double price,
+    String? note,
+    bool overridden = true,
+  }) async {
+    if (price <= 0) throw ArgumentError('Стоимость рейса должна быть больше нуля.');
+    final db = await database;
     await db.update(
       'trips',
-      {'price': price},
+      {
+        'price': price,
+        'price_overridden': overridden ? 1 : 0,
+        'price_note': note?.trim().isEmpty == true ? null : note?.trim(),
+      },
       where: 'id = ?',
       whereArgs: [tripId],
     );
@@ -1323,6 +1361,8 @@ class DatabaseHelper {
     required double rate,
     required double amount,
     int reminderHours = 12,
+    int firstReminderMinutes = 720,
+    int liveActivityMinutes = 60,
     String? note,
   }) async {
     final db = await database;
@@ -1340,6 +1380,8 @@ class DatabaseHelper {
       'status': 'planned',
       'paid': 0,
       'reminder_hours': reminderHours,
+      'first_reminder_minutes': firstReminderMinutes,
+      'live_activity_minutes': liveActivityMinutes,
       'note': note,
     });
   }
@@ -1355,6 +1397,8 @@ class DatabaseHelper {
     required double rate,
     required double amount,
     int reminderHours = 12,
+    int firstReminderMinutes = 720,
+    int liveActivityMinutes = 60,
     String? note,
   }) async {
     final db = await database;
@@ -1370,6 +1414,8 @@ class DatabaseHelper {
         'rate': rate,
         'amount': amount,
         'reminder_hours': reminderHours,
+        'first_reminder_minutes': firstReminderMinutes,
+        'live_activity_minutes': liveActivityMinutes,
         'note': note,
       },
       where: 'id = ?',

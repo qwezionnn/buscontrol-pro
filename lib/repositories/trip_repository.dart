@@ -81,7 +81,8 @@ class TripRepository {
       final oldPrice =
           (morningRow['price'] as num?)?.toDouble() ?? 0;
 
-      if (id is int && oldPrice != price) {
+      final overridden = morningRow['price_overridden'] == 1;
+      if (id is int && !overridden && oldPrice != price) {
         await _databaseHelper.updateTripPrice(
           id,
           price,
@@ -102,7 +103,8 @@ class TripRepository {
       final oldPrice =
           (eveningRow['price'] as num?)?.toDouble() ?? 0;
 
-      if (id is int && oldPrice != price) {
+      final overridden = eveningRow['price_overridden'] == 1;
+      if (id is int && !overridden && oldPrice != price) {
         await _databaseHelper.updateTripPrice(
           id,
           price,
@@ -110,6 +112,16 @@ class TripRepository {
       }
     }
   }
+
+  Future<void> editStandardTrip({
+    required int tripId,
+    required double price,
+    String? note,
+  }) => _databaseHelper.updateStandardTripActualPrice(
+        tripId: tripId,
+        price: price,
+        note: note,
+      );
 
   Future<List<Trip>> getTripsForDate(
       DateTime date,

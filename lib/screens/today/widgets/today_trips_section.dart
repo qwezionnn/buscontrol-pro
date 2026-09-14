@@ -121,6 +121,35 @@ class _TodayTripsSectionState extends State<TodayTripsSection> {
     );
   }
 
+  Future<void> _editStandardTrip(Trip trip) async {
+    if (trip.id == null || trip.type == TripType.extra) return;
+    final price = TextEditingController(text: trip.price.toStringAsFixed(trip.price == trip.price.roundToDouble() ? 0 : 2));
+    final note = TextEditingController(text: trip.priceNote ?? '');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(trip.type == TripType.morning ? 'Утренний рейс' : 'Вечерний рейс'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: price, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Фактическая цена', suffixText: '₽')),
+          const SizedBox(height: 10),
+          TextField(controller: note, decoration: const InputDecoration(labelText: 'Комментарий', hintText: 'Например: другой автобус')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Сохранить')),
+        ],
+      ),
+    );
+    if (ok == true) {
+      final value = double.tryParse(price.text.trim().replaceAll(',', '.'));
+      if (value != null && value > 0) {
+        await _repository.editStandardTrip(tripId: trip.id!, price: value, note: note.text);
+        await _loadTrips();
+      }
+    }
+    price.dispose(); note.dispose();
+  }
+
   String _formatMoney(double value) {
     return '${value.toStringAsFixed(0)} ₽';
   }
@@ -193,6 +222,11 @@ class _TodayTripsSectionState extends State<TodayTripsSection> {
                           ),
                     ),
                   ),
+                if (!isExtra && trip.priceOverridden && (trip.priceNote?.trim().isNotEmpty ?? false))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text('(${trip.priceNote})', style: Theme.of(context).textTheme.bodySmall),
+                  ),
                 if (isExtra && trip.waitHours > 0)
                   Padding(
                     padding: const EdgeInsets.only(top: 3),
@@ -216,6 +250,13 @@ class _TodayTripsSectionState extends State<TodayTripsSection> {
               decorationThickness: trip.completed ? 2 : null,
             ),
           ),
+          if (!isExtra)
+            IconButton(
+              tooltip: 'Изменить цену рейса',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.settings_outlined, size: 20),
+              onPressed: () => _editStandardTrip(trip),
+            ),
         ],
       ),
     );

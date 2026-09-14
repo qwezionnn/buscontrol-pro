@@ -25,6 +25,8 @@ class Order {
     this.paid = false,
     this.paidAmount = 0,
     this.reminderHours = 12,
+    this.firstReminderMinutes = 720,
+    this.liveActivityMinutes = 60,
     this.note,
   });
 
@@ -73,6 +75,8 @@ class Order {
 
   /// За сколько часов напомнить о заказе.
   final int reminderHours;
+  final int firstReminderMinutes;
+  final int liveActivityMinutes;
 
   final String? note;
 
@@ -108,6 +112,8 @@ class Order {
     bool? paid,
     double? paidAmount,
     int? reminderHours,
+    int? firstReminderMinutes,
+    int? liveActivityMinutes,
     String? note,
   }) {
     return Order(
@@ -124,6 +130,8 @@ class Order {
       paid: paid ?? this.paid,
       paidAmount: paidAmount ?? this.paidAmount,
       reminderHours: reminderHours ?? this.reminderHours,
+      firstReminderMinutes: firstReminderMinutes ?? this.firstReminderMinutes,
+      liveActivityMinutes: liveActivityMinutes ?? this.liveActivityMinutes,
       note: note ?? this.note,
     );
   }
@@ -143,6 +151,8 @@ class Order {
       'paid': paid ? 1 : 0,
       'paid_amount': paidAmount,
       'reminder_hours': reminderHours,
+      'first_reminder_minutes': firstReminderMinutes,
+      'live_activity_minutes': liveActivityMinutes,
       'note': note,
     };
   }
@@ -170,6 +180,8 @@ class Order {
               : 0),
       reminderHours:
       (map['reminder_hours'] as num?)?.toInt() ?? 12,
+      firstReminderMinutes: (map['first_reminder_minutes'] as num?)?.toInt() ?? 720,
+      liveActivityMinutes: (map['live_activity_minutes'] as num?)?.toInt() ?? 60,
       note: map['note']?.toString(),
     );
   }

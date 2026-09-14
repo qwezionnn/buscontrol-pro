@@ -349,7 +349,7 @@ class _MonthArchiveScreenState extends State<_MonthArchiveScreen> {
               .where((x) => x['type'] == 'morning' || x['type'] == 'evening')
               .toList(),
           (x) =>
-              '${x['date']} • ${x['type'] == 'morning' ? 'Утро' : 'Вечер'} • ${_money(_tripTotal(x))}',
+              '${x['date']} • ${x['type'] == 'morning' ? 'Утро' : 'Вечер'} • ${_money(_tripTotal(x))}${x['price_note']?.toString().trim().isNotEmpty == true ? ' (${x['price_note']})' : ''}',
         ),
       ],
     );

@@ -792,7 +792,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                     const SizedBox(height: 10),
                     _row('Автобус', snapshot.vehicleCash, strong: true),
                     _row('Кредит', snapshot.creditCash, strong: true),
-                    _row('Заработал себе (всего)', snapshot.personalFund, strong: true),
+                    _row('Заработал себе (этот месяц)', snapshot.personalFund, strong: true),
                     _row('Заначка', snapshot.reserveCash, strong: true),
                     if (snapshot.reserveDebt > 0)
                       _row('Нужно вернуть в заначку', snapshot.reserveDebt),

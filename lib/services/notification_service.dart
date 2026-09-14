@@ -69,6 +69,12 @@ class NotificationService {
     );
   }
 
+  String _durationLabel(int minutes) {
+    if (minutes % 60 == 0) return '${minutes ~/ 60} ч';
+    if (minutes > 60) return '${minutes ~/ 60} ч ${minutes % 60} мин';
+    return '$minutes мин';
+  }
+
   Future<void> scheduleOrder(Order order) async {
     if (kIsWeb || order.id == null || !order.isPlanned) return;
 
@@ -78,19 +84,20 @@ class NotificationService {
     final at = _date(order);
     if (at == null) return;
 
-    final reminderHours = order.reminderHours <= 0 ? 2 : order.reminderHours;
+    final firstMinutes = order.firstReminderMinutes <= 0 ? 720 : order.firstReminderMinutes;
+    final liveMinutes = order.liveActivityMinutes <= 0 ? 60 : order.liveActivityMinutes;
     final reminders = <({int slot, DateTime when, String title, String body})>[
       (
         slot: 1,
-        when: at.subtract(const Duration(days: 1)),
-        title: '🚌 Завтра заказ',
-        body: 'Завтра в ${order.time} — ${order.title}. Не забудь про заказ.',
+        when: at.subtract(Duration(minutes: firstMinutes)),
+        title: '🚌 Напоминание о заказе',
+        body: '${order.title} • ${order.time}${order.note == null || order.note!.trim().isEmpty ? '' : '\n${order.note}'}',
       ),
       (
         slot: 2,
-        when: at.subtract(Duration(hours: reminderHours)),
+        when: at.subtract(Duration(minutes: liveMinutes)),
         title: '🚌 Скоро заказ',
-        body: '${order.title} в ${order.time}. До заказа осталось $reminderHours ч.',
+        body: '${order.title} • ${order.time} • осталось ${_durationLabel(liveMinutes)}${order.note == null || order.note!.trim().isEmpty ? '' : '\n${order.note}'}',
       ),
     ];
 
