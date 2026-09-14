@@ -34,6 +34,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
   double _tripIncomeTarget = 0;
   double _monthPayoutTotal = 0;
   List<Map<String, Object?>> _monthPayouts = const [];
+  Map<String, double> _personalTransfers = const {};
   bool _loading = true;
   bool _busy = false;
   List<double> _chartValues = const [];
@@ -54,7 +55,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
     setState(() => _loading = true);
     final report = await _reports.getMonthReport(_month);
     final settings = await _settings.getSettings();
-    final snapshot = await _assistant.getSnapshot();
+    final snapshot = await _assistant.getSnapshot(personalMonth: _month);
+    final personalTransfers = await _assistant.getPersonalTransferSummary(_month);
     final tripIncomeTarget = await _assistant.getTripIncomeTarget(
       month: _month,
       calculatedAmount: report.tripIncome,
@@ -99,6 +101,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
       _report = report;
       _appSettings = settings;
       _snapshot = snapshot;
+      _personalTransfers = personalTransfers;
       _tripIncomeTarget = tripIncomeTarget;
       _monthPayouts = monthPayouts;
       _monthPayoutTotal = monthPayoutTotal;
@@ -111,6 +114,18 @@ class _FinanceScreenState extends State<FinanceScreen> {
   void _changeMonth(int offset) {
     _month = DateTime(_month.year, _month.month + offset);
     _load();
+  }
+
+  String _personalTransferLabel(String key) {
+    const names = <String, String>{
+      'vehicle': 'Автобус',
+      'credit': 'Кредит',
+      'personal': 'Личные',
+      'reserve': 'Заначка',
+    };
+    final parts = key.split('->');
+    if (parts.length != 2) return key;
+    return '${names[parts[0]] ?? parts[0]} → ${names[parts[1]] ?? parts[1]}';
   }
 
   String _money(double value) {
@@ -792,14 +807,25 @@ class _FinanceScreenState extends State<FinanceScreen> {
                     const SizedBox(height: 10),
                     _row('Автобус', snapshot.vehicleCash, strong: true),
                     _row('Кредит', snapshot.creditCash, strong: true),
-                    _row('Заработал себе (этот месяц)', snapshot.personalFund, strong: true),
+                    _row('Заработал себе (${_months[_month.month - 1].toLowerCase()})', snapshot.personalFund, strong: true),
                     _row('Заначка', snapshot.reserveCash, strong: true),
                     if (snapshot.reserveDebt > 0)
                       _row('Нужно вернуть в заначку', snapshot.reserveDebt),
                     const SizedBox(height: 6),
-                    const Text(
-                      'Автобус, кредиты и заначка — реальные остатки. «Заработал себе» — статистика, а не личный баланс.',
+                    Text(
+                      'Автобус, кредит и заначка — реальные остатки сейчас. '
+                      '«Заработал себе» считается отдельно за ${_months[_month.month - 1].toLowerCase()} ${_month.year}.',
                     ),
+                    if (_personalTransfers.isNotEmpty) ...[
+                      const Divider(height: 20),
+                      const Text(
+                        'Переводы личных за выбранный месяц',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 6),
+                      for (final entry in _personalTransfers.entries)
+                        _row(_personalTransferLabel(entry.key), entry.value),
+                    ],
                   ],
                 ),
               ),
@@ -809,7 +835,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Распределение фактически полученных денег',
+                      'Счета и распределение',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -823,7 +849,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                       for (final entry
                           in snapshot.creditAllocations.entries)
                         _row(entry.key, entry.value),
-                    _row('Личные деньги', snapshot.personalFund),
+                    _row('Заработано себе за выбранный месяц', snapshot.personalFund),
                     const Divider(height: 24),
                     _row('Топливо', -snapshot.fuelCost),
                     _row('Другие расходы автобуса', -snapshot.otherExpenses),

@@ -18,6 +18,8 @@ class FinancialSnapshot {
     required this.vehicleTransferNet,
     required this.creditTransferNet,
     required this.personalTransferNet,
+    required this.personalTransferIn,
+    required this.personalTransferOut,
     required this.reserveFund,
     required this.reserveTransferNet,
     required this.reserveSpent,
@@ -36,6 +38,8 @@ class FinancialSnapshot {
   final double vehicleTransferNet;
   final double creditTransferNet;
   final double personalTransferNet;
+  final double personalTransferIn;
+  final double personalTransferOut;
   final double reserveFund;
   final double reserveTransferNet;
   final double reserveSpent;
@@ -64,7 +68,7 @@ class FinancialAssistantRepository {
   final DatabaseHelper _database = DatabaseHelper.instance;
   final SettingsRepository _settings = SettingsRepository.instance;
 
-  Future<FinancialSnapshot> getSnapshot() async {
+  Future<FinancialSnapshot> getSnapshot({DateTime? personalMonth}) async {
     final settings = await _settings.getSettings();
     final trips =
         await _database.getTripsBetween('2000-01-01', '2999-12-31');
@@ -81,11 +85,13 @@ class FinancialAssistantRepository {
     var personalFund = 0.0;
     var reserveFund = 0.0;
 
-    final now = DateTime.now();
-    bool isCurrentMonth(Object? raw) {
+    final statsMonth = personalMonth ?? DateTime.now();
+    bool isPersonalMonth(Object? raw) {
       final text = raw?.toString() ?? '';
       final date = DateTime.tryParse(text);
-      return date != null && date.year == now.year && date.month == now.month;
+      return date != null &&
+          date.year == statsMonth.year &&
+          date.month == statsMonth.month;
     }
 
     void applyDefaultDistribution(double amount, {bool includePersonal = true}) {
@@ -114,7 +120,7 @@ class FinancialAssistantRepository {
     for (final payment in payments) {
       final amount = (payment['amount'] as num?)?.toDouble() ?? 0;
       orderIncome += amount;
-      final personalThisMonth = isCurrentMonth(payment['paid_at']);
+      final personalThisMonth = isPersonalMonth(payment['paid_at']);
 
       final vehiclePercent =
           (payment['vehicle_percent'] as num?)?.toDouble();
@@ -158,7 +164,7 @@ class FinancialAssistantRepository {
       final cp = (payout['credit_percent'] as num?)?.toDouble();
       final pp = (payout['personal_percent'] as num?)?.toDouble();
       final rp = (payout['reserve_percent'] as num?)?.toDouble();
-      final personalThisMonth = isCurrentMonth(payout['received_at'] ?? payout['month']);
+      final personalThisMonth = isPersonalMonth(payout['received_at'] ?? payout['month']);
       if (vp == null || cp == null || pp == null || rp == null) {
         applyDefaultDistribution(amount, includePersonal: personalThisMonth);
       } else {
@@ -214,6 +220,8 @@ class FinancialAssistantRepository {
     var vehicleTransferNet = 0.0;
     var creditTransferNet = 0.0;
     var personalTransferNet = 0.0;
+    var personalTransferIn = 0.0;
+    var personalTransferOut = 0.0;
     var reserveTransferNet = 0.0;
 
     void applyTransfer(String account, double delta) {
@@ -236,8 +244,15 @@ class FinancialAssistantRepository {
     for (final transfer in transfers) {
       final amount = (transfer['amount'] as num?)?.toDouble() ?? 0;
       if (amount <= 0) continue;
-      applyTransfer(transfer['from_account']?.toString() ?? '', -amount);
-      applyTransfer(transfer['to_account']?.toString() ?? '', amount);
+      final from = transfer['from_account']?.toString() ?? '';
+      final to = transfer['to_account']?.toString() ?? '';
+      applyTransfer(from, -amount);
+      applyTransfer(to, amount);
+
+      if (isPersonalMonth(transfer['transferred_at'])) {
+        if (from == 'personal') personalTransferOut += amount;
+        if (to == 'personal') personalTransferIn += amount;
+      }
     }
 
     final creditAllocations = <String, double>{
@@ -263,6 +278,8 @@ class FinancialAssistantRepository {
       vehicleTransferNet: vehicleTransferNet,
       creditTransferNet: creditTransferNet,
       personalTransferNet: personalTransferNet,
+      personalTransferIn: personalTransferIn,
+      personalTransferOut: personalTransferOut,
     );
   }
 
@@ -504,6 +521,25 @@ class FinancialAssistantRepository {
     history.sort((a, b) =>
         (b['date']?.toString() ?? '').compareTo(a['date']?.toString() ?? ''));
     return history;
+  }
+
+  Future<Map<String, double>> getPersonalTransferSummary(DateTime month) async {
+    final transfers = await _database.getFundTransfers();
+    final result = <String, double>{};
+    for (final row in transfers) {
+      final date = DateTime.tryParse(row['transferred_at']?.toString() ?? '');
+      if (date == null || date.year != month.year || date.month != month.month) {
+        continue;
+      }
+      final from = row['from_account']?.toString() ?? '';
+      final to = row['to_account']?.toString() ?? '';
+      if (from != 'personal' && to != 'personal') continue;
+      final amount = (row['amount'] as num?)?.toDouble() ?? 0;
+      if (amount <= 0) continue;
+      final key = '$from->$to';
+      result[key] = (result[key] ?? 0) + amount;
+    }
+    return result;
   }
 
   Future<List<Map<String, Object?>>> getFundTransfers() {

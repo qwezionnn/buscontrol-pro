@@ -186,7 +186,7 @@ class _FundTransferScreenState extends State<FundTransferScreen> {
             Text(_names[key]!, style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 3),
             Text(
-              key == 'personal' ? 'Внешний источник' : _money(_balance(key)),
+              key == 'personal' ? 'Не ведём баланс' : _money(_balance(key)),
               style: const TextStyle(
                 fontSize: 19,
                 fontWeight: FontWeight.bold,
@@ -272,7 +272,9 @@ class _FundTransferScreenState extends State<FundTransferScreen> {
                                 (e) => DropdownMenuItem(
                                   value: e.key,
                                   child: Text(
-                                    '${e.value} • ${_money(_balance(e.key))}',
+                                    e.key == 'personal'
+                                        ? e.value
+                                        : '${e.value} • ${_money(_balance(e.key))}',
                                   ),
                                 ),
                               )
