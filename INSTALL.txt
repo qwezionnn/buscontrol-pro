@@ -1,6 +1,6 @@
-BusControl PRO — Live Activity bundle identifier fix
+BusControl PRO — Live Activity install fix
 
-Распаковать архив в корень проекта C:\Projects\bus_control_pro_final с заменой файла.
-Изменён только ios/BusControlLiveActivity/Info.plist.
+Исправляет установку IPA: app extension теперь имеет явные CFBundleVersion=1 и CFBundleShortVersionString=1.0.
 
-Исправление: Widget Extension теперь явно получает CFBundleIdentifier из PRODUCT_BUNDLE_IDENTIFIER и корректные bundle metadata.
+Распаковать архив в корень проекта C:\Projects\bus_control_pro_final с заменой файлов.
+После этого сделать commit/push и пересобрать IPA.
