@@ -1,4 +1,6 @@
-BusControl PRO — iOS Live Activity iOS 16.1 build fix
+BusControl PRO — Live Activity bundle identifier fix
 
-Replace files preserving folders, then run flutter analyze and push to GitHub Actions.
-Fix: uses the ActivityKit end(using:dismissalPolicy:) API available from iOS 16.1 instead of the newer iOS 16.2 end(_:dismissalPolicy:) overload.
+Распаковать архив в корень проекта C:\Projects\bus_control_pro_final с заменой файла.
+Изменён только ios/BusControlLiveActivity/Info.plist.
+
+Исправление: Widget Extension теперь явно получает CFBundleIdentifier из PRODUCT_BUNDLE_IDENTIFIER и корректные bundle metadata.
