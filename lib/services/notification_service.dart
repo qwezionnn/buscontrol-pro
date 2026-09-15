@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
@@ -14,6 +15,7 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
   bool _ready = false;
+  static const MethodChannel _liveChannel = MethodChannel('buscontrol/live_activity');
 
   Future<void> initialize() async {
     if (kIsWeb || _ready) return;
@@ -75,6 +77,38 @@ class NotificationService {
     return '$minutes мин';
   }
 
+  Future<void> startLiveActivityIfEligible(Order order) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS || order.id == null || !order.isPlanned) return;
+    final at = _date(order);
+    if (at == null) return;
+
+    final minutes = order.liveActivityMinutes <= 0 ? 60 : order.liveActivityMinutes;
+    final startAt = at.subtract(Duration(minutes: minutes));
+    final now = DateTime.now();
+    if (now.isBefore(startAt) || !now.isBefore(at)) return;
+
+    try {
+      await _liveChannel.invokeMethod('start', {
+        'orderId': order.id,
+        'title': order.title,
+        'time': order.time,
+        'note': order.note ?? '',
+        'orderTimestampMs': at.millisecondsSinceEpoch,
+      });
+    } on PlatformException {
+      // Live Activities may be disabled by the user or unavailable on this iOS version.
+    }
+  }
+
+  Future<void> endLiveActivity(int orderId) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
+    try {
+      await _liveChannel.invokeMethod('end', {'orderId': orderId});
+    } on PlatformException {
+      // Ignore unsupported/disabled Live Activities.
+    }
+  }
+
   Future<void> scheduleOrder(Order order) async {
     if (kIsWeb || order.id == null || !order.isPlanned) return;
 
@@ -83,6 +117,8 @@ class NotificationService {
 
     final at = _date(order);
     if (at == null) return;
+
+    await startLiveActivityIfEligible(order);
 
     final firstMinutes = order.firstReminderMinutes <= 0 ? 720 : order.firstReminderMinutes;
     final liveMinutes = order.liveActivityMinutes <= 0 ? 60 : order.liveActivityMinutes;
@@ -114,6 +150,7 @@ class NotificationService {
             presentAlert: true,
             presentBadge: true,
             presentSound: true,
+            interruptionLevel: InterruptionLevel.timeSensitive,
           ),
           android: AndroidNotificationDetails(
             'orders',
@@ -134,6 +171,7 @@ class NotificationService {
     await initialize();
     await _plugin.cancel(_id(id, 1));
     await _plugin.cancel(_id(id, 2));
+    await endLiveActivity(id);
   }
 
   Future<void> scheduleService({

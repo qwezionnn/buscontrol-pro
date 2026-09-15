@@ -1,0 +1,11 @@
+BusControl PRO — iOS Live Activity
+
+1. Copy the patch over the project root, preserving folders.
+2. Run: flutter pub get
+3. Run: flutter analyze
+4. Push and let GitHub Actions build the iOS IPA.
+
+Live Activity requires iOS 16.1+ and Live Activities enabled for BusControl PRO in iPhone Settings.
+The lock-screen/Dynamic Island countdown starts when BusControl PRO is active/opened during the order's configured Live Activity window. A time-sensitive local notification is also scheduled at the beginning of that window.
+
+Important iOS limitation: a local-only app cannot guarantee launching a brand-new Live Activity at an arbitrary future minute while the app is fully terminated. Guaranteed remote push-to-start requires APNs/server support. This patch does not fake that behavior.
