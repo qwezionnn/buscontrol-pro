@@ -1,15 +1,4 @@
-BusControl PRO — Finance Monthly Personal Patch
+BusControl PRO — iOS Live Activity iOS 16.1 build fix
 
-1. Распаковать содержимое архива в C:\Projects\bus_control_pro_final с заменой файлов.
-2. Выполнить:
-   cd C:\Projects\bus_control_pro_final
-   flutter analyze
-3. Если error нет — можно делать git add/commit/push.
-
-Что изменено:
-- Автобус, Кредит и Заначка показывают текущие реальные остатки и не меняются при листании месяцев.
-- «Заработал себе» считается строго за выбранный месяц/год.
-- При листании Август/Сентябрь личная статистика пересчитывается для выбранного месяца.
-- Переводы с участием личных показываются по направлению: «Личные → Автобус», «Личные → Заначка», «Автобус → Личные» и т.п.
-- Личные остаются статистикой/внешним источником, а не отслеживаемым кошельком.
-- История переводов сохраняет понятное направление Откуда → Куда и комментарий.
+Replace files preserving folders, then run flutter analyze and push to GitHub Actions.
+Fix: uses the ActivityKit end(using:dismissalPolicy:) API available from iOS 16.1 instead of the newer iOS 16.2 end(_:dismissalPolicy:) overload.

@@ -12,7 +12,7 @@ final class LiveActivityManager {
         }
 
         for activity in Activity<BusOrderAttributes>.activities where activity.attributes.orderId == orderId {
-            await activity.end(nil, dismissalPolicy: .immediate)
+            await activity.end(using: nil, dismissalPolicy: .immediate)
         }
 
         let attributes = BusOrderAttributes(orderId: orderId)
@@ -22,7 +22,7 @@ final class LiveActivityManager {
 
     func end(orderId: Int) async {
         for activity in Activity<BusOrderAttributes>.activities where activity.attributes.orderId == orderId {
-            await activity.end(nil, dismissalPolicy: .immediate)
+            await activity.end(using: nil, dismissalPolicy: .immediate)
         }
     }
 }
