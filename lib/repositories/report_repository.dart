@@ -35,6 +35,7 @@ class DayEvents {
     required this.orders,
     required this.fuelLogs,
     required this.expenses,
+    required this.notes,
     required this.distance,
     required this.startMileage,
     required this.endMileage,
@@ -45,6 +46,7 @@ class DayEvents {
   final List<Map<String, Object?>> orders;
   final List<Map<String, Object?>> fuelLogs;
   final List<Map<String, Object?>> expenses;
+  final List<Map<String, Object?>> notes;
   final int? distance;
   final int? startMileage;
   final int? endMileage;
@@ -53,6 +55,7 @@ class DayEvents {
   bool get hasOrders => orders.isNotEmpty;
   bool get hasFuel => fuelLogs.isNotEmpty;
   bool get hasExpenses => expenses.isNotEmpty;
+  bool get hasNotes => notes.isNotEmpty;
   bool get hasMileage => distance != null;
   bool get hasOutstandingPayment => orders.any((row) {
     if (row['status'] != 'completed') return false;
@@ -167,12 +170,16 @@ class ReportRepository {
     final orders = await _database.getOrdersBetween(from, to);
     final fuel = await _database.getFuelLogsBetween(from, to);
     final expenses = await _database.getExpensesBetween(from, to);
+    final db = await _database.database;
+    final vehicleId = await _database.getActiveVehicleId();
+    final notes = await db.query('calendar_notes', where: 'vehicle_id = ? AND date >= ? AND date <= ?', whereArgs: [vehicleId, from, to], orderBy: 'date ASC, time ASC');
     final logs = await _database.getDailyLogsBetween(from, to);
 
     final tripMap = <String, List<Map<String, Object?>>>{};
     final orderMap = <String, List<Map<String, Object?>>>{};
     final fuelMap = <String, List<Map<String, Object?>>>{};
     final expenseMap = <String, List<Map<String, Object?>>>{};
+    final noteMap = <String, List<Map<String, Object?>>>{};
     final distanceMap = <String, int>{};
     final startMileageMap = <String, int>{};
     final endMileageMap = <String, int>{};
@@ -188,6 +195,9 @@ class ReportRepository {
     }
     for (final row in expenses) {
       expenseMap.putIfAbsent(row['date'].toString(), () => []).add(row);
+    }
+    for (final row in notes) {
+      noteMap.putIfAbsent(row['date'].toString(), () => []).add(row);
     }
     for (final row in logs) {
       final start = (row['start_mileage'] as num?)?.toInt();
@@ -205,6 +215,7 @@ class ReportRepository {
       ...orderMap.keys,
       ...fuelMap.keys,
       ...expenseMap.keys,
+      ...noteMap.keys,
       ...distanceMap.keys,
     };
 
@@ -216,6 +227,7 @@ class ReportRepository {
           orders: orderMap[date] ?? const [],
           fuelLogs: fuelMap[date] ?? const [],
           expenses: expenseMap[date] ?? const [],
+          notes: noteMap[date] ?? const [],
           distance: distanceMap[date],
           startMileage: startMileageMap[date],
           endMileage: endMileageMap[date],
@@ -229,6 +241,9 @@ class ReportRepository {
     final orders = await _database.getOrdersByDate(value);
     final fuel = await _database.getFuelLogsByDate(value);
     final expenses = await _database.getExpensesByDate(value);
+    final db = await _database.database;
+    final vehicleId = await _database.getActiveVehicleId();
+    final notes = await db.query('calendar_notes', where: 'vehicle_id = ? AND date = ?', whereArgs: [vehicleId, value], orderBy: 'time ASC');
     final log = await _database.getDailyLog(value);
     final start = (log?['start_mileage'] as num?)?.toInt();
     final end = (log?['end_mileage'] as num?)?.toInt();
@@ -239,6 +254,7 @@ class ReportRepository {
       orders: orders,
       fuelLogs: fuel,
       expenses: expenses,
+      notes: notes,
       distance: start != null && end != null ? end - start : null,
       startMileage: start,
       endMileage: end,

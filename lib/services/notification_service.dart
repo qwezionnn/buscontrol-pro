@@ -6,6 +6,7 @@ import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../models/order.dart';
+import '../database/database_helper.dart';
 
 class NotificationService {
   NotificationService._();
@@ -100,6 +101,34 @@ class NotificationService {
     }
   }
 
+  Future<void> startNearestLiveActivityIfEligible() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
+    final db = await DatabaseHelper.instance.database;
+    final vehicleId = await DatabaseHelper.instance.getActiveVehicleId();
+    final rows = await db.query(
+      'orders',
+      where: 'vehicle_id = ? AND status = ?',
+      whereArgs: [vehicleId, 'planned'],
+      orderBy: 'date ASC, time ASC',
+    );
+
+    final now = DateTime.now();
+    Order? nearest;
+    DateTime? nearestAt;
+    for (final row in rows) {
+      final order = Order.fromMap(row);
+      final at = _date(order);
+      if (at == null || !at.isAfter(now)) continue;
+      if (nearestAt == null || at.isBefore(nearestAt)) {
+        nearest = order;
+        nearestAt = at;
+      }
+    }
+    if (nearest != null) {
+      await startLiveActivityIfEligible(nearest);
+    }
+  }
+
   Future<void> endLiveActivity(int orderId) async {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
     try {
@@ -172,6 +201,64 @@ class NotificationService {
     await _plugin.cancel(_id(id, 1));
     await _plugin.cancel(_id(id, 2));
     await endLiveActivity(id);
+  }
+
+  int _calendarNoteId(int id) => 850000 + id;
+
+  Future<void> cancelCalendarNote(int id) async {
+    if (kIsWeb) return;
+    await initialize();
+    await _plugin.cancel(_calendarNoteId(id));
+  }
+
+  Future<void> scheduleCalendarNote({
+    required int id,
+    required String date,
+    required String? time,
+    required String title,
+    String? body,
+    required bool enabled,
+    required int reminderMinutes,
+  }) async {
+    if (kIsWeb) return;
+    await initialize();
+    await _plugin.cancel(_calendarNoteId(id));
+    if (!enabled || time == null || time.isEmpty) return;
+
+    final dp = date.split('-');
+    final tp = time.split(':');
+    if (dp.length != 3 || tp.length < 2) return;
+    final eventAt = DateTime(
+      int.parse(dp[0]), int.parse(dp[1]), int.parse(dp[2]),
+      int.parse(tp[0]), int.parse(tp[1]),
+    );
+    final when = eventAt.subtract(Duration(minutes: reminderMinutes));
+    if (!when.isAfter(DateTime.now())) return;
+
+    final note = body?.trim();
+    await _plugin.zonedSchedule(
+      _calendarNoteId(id),
+      '📌 $title',
+      '${time.trim()}${note == null || note.isEmpty ? '' : '\n$note'}',
+      tz.TZDateTime.from(when, tz.local),
+      const NotificationDetails(
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+          interruptionLevel: InterruptionLevel.timeSensitive,
+        ),
+        android: AndroidNotificationDetails(
+          'calendar_notes',
+          'Заметки календаря',
+          channelDescription: 'Напоминания о заметках и личных событиях',
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+      ),
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      payload: 'calendar_note:$id',
+    );
   }
 
   Future<void> scheduleService({

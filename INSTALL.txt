@@ -1,6 +1,5 @@
-BusControl PRO — Live Activity install fix
+BusControl PRO — Time Wheel missing file fix
 
-Исправляет установку IPA: app extension теперь имеет явные CFBundleVersion=1 и CFBundleShortVersionString=1.0.
-
-Распаковать архив в корень проекта C:\Projects\bus_control_pro_final с заменой файлов.
-После этого сделать commit/push и пересобрать IPA.
+Распаковать архив в корень C:\Projects\bus_control_pro_final с заменой/добавлением файлов.
+Затем выполнить:
+  flutter analyze

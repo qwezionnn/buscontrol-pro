@@ -8,6 +8,8 @@ import '../../repositories/trip_repository.dart';
 import '../../repositories/fuel_repository.dart';
 import '../../repositories/expense_repository.dart';
 import '../../repositories/daily_log_repository.dart';
+import '../../repositories/calendar_note_repository.dart';
+import '../../widgets/time_wheel_picker.dart';
 import '../../widgets/bus_card.dart';
 import '../expenses/add_expense_screen.dart';
 import '../fuel/add_fuel_screen.dart';
@@ -164,6 +166,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 title: const Text('Расход'),
                 onTap: () => Navigator.pop(sheetContext, 'expense'),
               ),
+              ListTile(
+                leading: const Icon(Icons.note_alt_outlined),
+                title: const Text('Заметка'),
+                subtitle: const Text('Личное событие, подмена, дела'),
+                onTap: () => Navigator.pop(sheetContext, 'note'),
+              ),
             ],
           ),
         ),
@@ -224,6 +232,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
           date,
           AddExpenseScreen(initialDate: date),
         );
+        break;
+      case 'note':
+        await _editCalendarNote(date);
         break;
     }
   }
@@ -571,6 +582,170 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
   }
 
+  Future<void> _editCalendarNote(
+    DateTime date, {
+    Map<String, Object?>? existing,
+  }) async {
+    final titleController = TextEditingController(text: existing?['title']?.toString() ?? '');
+    final bodyController = TextEditingController(text: existing?['body']?.toString() ?? '');
+    TimeOfDay? selectedTime;
+    final oldTime = existing?['time']?.toString();
+    if (oldTime != null && oldTime.contains(':')) {
+      final parts = oldTime.split(':');
+      selectedTime = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+    }
+    var reminderEnabled = existing?['reminder_enabled'] == 1;
+    var reminderMinutes = (existing?['reminder_minutes'] as num?)?.toInt() ?? 30;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(existing == null ? 'Новая заметка' : 'Изменить заметку'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleController,
+                  autofocus: existing == null,
+                  decoration: const InputDecoration(
+                    labelText: 'Заголовок',
+                    hintText: 'Например: Парикмахерская',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: bodyController,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Пометка',
+                    hintText: 'Например: вечером за меня ездил другой человек',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.schedule),
+                  title: const Text('Время'),
+                  subtitle: Text(selectedTime == null ? 'Без времени' : selectedTime!.format(context)),
+                  trailing: selectedTime == null
+                      ? const Icon(Icons.chevron_right)
+                      : IconButton(
+                          tooltip: 'Убрать время',
+                          onPressed: () => setDialogState(() {
+                            selectedTime = null;
+                            reminderEnabled = false;
+                          }),
+                          icon: const Icon(Icons.close),
+                        ),
+                  onTap: () async {
+                    final picked = await showBusTimeWheelPicker(
+                      context,
+                      initialTime: selectedTime ?? TimeOfDay.now(),
+                      title: 'Время заметки',
+                    );
+                    if (picked != null) setDialogState(() => selectedTime = picked);
+                  },
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Уведомление'),
+                  subtitle: Text(selectedTime == null
+                      ? 'Сначала укажите время'
+                      : reminderEnabled
+                          ? 'За ${formatBusDuration(reminderMinutes)}'
+                          : 'Выключено'),
+                  value: reminderEnabled && selectedTime != null,
+                  onChanged: selectedTime == null
+                      ? null
+                      : (value) => setDialogState(() => reminderEnabled = value),
+                ),
+                if (reminderEnabled && selectedTime != null)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.notifications_active_outlined),
+                    title: const Text('Напомнить заранее'),
+                    subtitle: Text(formatBusDuration(reminderMinutes)),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () async {
+                      final value = await showBusDurationWheelPicker(
+                        context,
+                        initialMinutes: reminderMinutes,
+                        title: 'За сколько напомнить',
+                        maxHours: 48,
+                        allowZero: true,
+                      );
+                      if (value != null) setDialogState(() => reminderMinutes = value);
+                    },
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Отмена')),
+            FilledButton(
+              onPressed: () {
+                if (titleController.text.trim().isEmpty) return;
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Сохранить'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (saved != true) return;
+    final time = selectedTime == null
+        ? null
+        : '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}';
+    await CalendarNoteRepository.instance.save(
+      id: (existing?['id'] as num?)?.toInt(),
+      date: _dateKey(date),
+      time: time,
+      title: titleController.text,
+      body: bodyController.text,
+      reminderEnabled: reminderEnabled && selectedTime != null,
+      reminderMinutes: reminderMinutes,
+    );
+    await _load();
+  }
+
+  Future<void> _showCalendarNoteActions(DateTime date, Map<String, Object?> note) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Редактировать'),
+              onTap: () => Navigator.pop(sheetContext, 'edit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('Удалить заметку', style: TextStyle(color: Colors.red)),
+              onTap: () => Navigator.pop(sheetContext, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == 'edit') {
+      await _editCalendarNote(date, existing: note);
+    } else if (action == 'delete') {
+      final id = (note['id'] as num?)?.toInt();
+      if (id != null) {
+        await CalendarNoteRepository.instance.delete(id);
+        await _load();
+      }
+    }
+  }
+
   Future<void> _showDay(DateTime date) async {
     final data = await _repository.getDayEvents(date);
     if (!mounted) return;
@@ -640,6 +815,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       !data.hasOrders &&
                       !data.hasFuel &&
                       !data.hasExpenses &&
+                      !data.hasNotes &&
                       !data.hasMileage)
                     const BusCard(
                       child: Text('На этот день записей нет.'),
@@ -700,6 +876,24 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         Future<void>.delayed(
                           const Duration(milliseconds: 120),
                           () => _showExpenseActions(expense),
+                        );
+                      },
+                      trailing: const Icon(Icons.more_horiz),
+                    ),
+                  for (final note in data.notes)
+                    _eventTile(
+                      Icons.note_alt_outlined,
+                      note['title']?.toString() ?? 'Заметка',
+                      [
+                        if ((note['time']?.toString() ?? '').isNotEmpty) note['time'].toString(),
+                        if ((note['body']?.toString() ?? '').trim().isNotEmpty) note['body'].toString(),
+                        if (note['reminder_enabled'] == 1) '🔔 уведомление',
+                      ].join(' • '),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Future<void>.delayed(
+                          const Duration(milliseconds: 120),
+                          () => _showCalendarNoteActions(date, note),
                         );
                       },
                       trailing: const Icon(Icons.more_horiz),
@@ -836,6 +1030,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         const Icon(Icons.local_gas_station, size: 13),
                       if (data?.hasExpenses == true)
                         const Icon(Icons.receipt_long, size: 13),
+                      if (data?.hasNotes == true)
+                        const Icon(Icons.note_alt_outlined, size: 13),
                       if (data?.hasMileage == true)
                         const Icon(Icons.speed, size: 13),
                     ],

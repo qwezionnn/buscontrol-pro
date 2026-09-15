@@ -41,7 +41,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 17,
+      version: 18,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -93,6 +93,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 17) {
       await _upgradeToVersion17(db);
+    }
+    if (oldVersion < 18) {
+      await _upgradeToVersion18(db);
     }
     await _createTables(db);
     await _insertDefaultSettings(db);
@@ -152,6 +155,21 @@ class DatabaseHelper {
         first_reminder_minutes INTEGER NOT NULL DEFAULT 720,
         live_activity_minutes INTEGER NOT NULL DEFAULT 60,
         note TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS calendar_notes(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vehicle_id INTEGER NOT NULL DEFAULT 1,
+        date TEXT NOT NULL,
+        time TEXT,
+        title TEXT NOT NULL,
+        body TEXT,
+        reminder_enabled INTEGER NOT NULL DEFAULT 0,
+        reminder_minutes INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
       )
     ''');
 
@@ -789,6 +807,23 @@ class DatabaseHelper {
     if (!await _hasColumn(db, 'orders', 'live_activity_minutes')) {
       await db.execute('ALTER TABLE orders ADD COLUMN live_activity_minutes INTEGER NOT NULL DEFAULT 60');
     }
+  }
+
+  Future<void> _upgradeToVersion18(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS calendar_notes(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vehicle_id INTEGER NOT NULL DEFAULT 1,
+        date TEXT NOT NULL,
+        time TEXT,
+        title TEXT NOT NULL,
+        body TEXT,
+        reminder_enabled INTEGER NOT NULL DEFAULT 0,
+        reminder_minutes INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
   }
 
   Future<int> getActiveVehicleId() async {
