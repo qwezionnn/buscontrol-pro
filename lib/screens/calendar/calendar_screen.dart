@@ -116,12 +116,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Future<void> _showAddMenu(DateTime date) async {
     final action = await showModalBottomSheet<String>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
-        child: Padding(
+        child: FractionallySizedBox(
+          heightFactor: 0.85,
+          child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: ListView(
             children: [
               Text(
                 'Добавить на ${date.day.toString().padLeft(2, '0')}.'
@@ -174,6 +176,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

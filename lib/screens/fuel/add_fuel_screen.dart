@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../widgets/time_wheel_picker.dart';
+
 import '../../models/fuel.dart';
 import '../../repositories/fuel_repository.dart';
 import '../../repositories/settings_repository.dart';
@@ -137,9 +139,10 @@ class _AddFuelScreenState extends State<AddFuelScreen> {
   }
 
   Future<void> _selectTime() async {
-    final result = await showTimePicker(
-      context: context,
+    final result = await showBusTimeWheelPicker(
+      context,
       initialTime: _selectedTime,
+      title: 'Выберите время',
     );
     if (result == null) return;
     setState(() => _selectedTime = result);

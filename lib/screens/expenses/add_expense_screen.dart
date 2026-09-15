@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../widgets/time_wheel_picker.dart';
+
 import '../../models/expense.dart';
 import '../../repositories/expense_repository.dart';
 
@@ -132,9 +134,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   Future<void> _selectTime() async {
-    final result = await showTimePicker(
-      context: context,
+    final result = await showBusTimeWheelPicker(
+      context,
       initialTime: _selectedTime,
+      title: 'Выберите время',
     );
 
     if (result == null) {

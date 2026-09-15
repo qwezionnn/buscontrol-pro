@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../widgets/time_wheel_picker.dart';
+
 import '../../database/database_helper.dart';
 
 class AddExtraTripScreen extends StatefulWidget {
@@ -63,9 +65,10 @@ class _AddExtraTripScreenState extends State<AddExtraTripScreen> {
   }
 
   Future<void> _selectTime() async {
-    final result = await showTimePicker(
-      context: context,
+    final result = await showBusTimeWheelPicker(
+      context,
       initialTime: _selectedTime,
+      title: 'Выберите время',
     );
     if (result != null) setState(() => _selectedTime = result);
   }
@@ -178,8 +181,25 @@ class _AddExtraTripScreenState extends State<AddExtraTripScreen> {
                           Expanded(
                             child: TextFormField(
                               controller: _waitHoursController,
+                              readOnly: true,
                               textAlign: TextAlign.center,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              onTap: () async {
+                                final current = (_parse(_waitHoursController) * 60).round();
+                                final picked = await showBusDurationWheelPicker(
+                                  context,
+                                  initialMinutes: current,
+                                  title: 'Время ожидания',
+                                  maxHours: 24,
+                                  allowZero: true,
+                                );
+                                if (picked != null) {
+                                  final hours = picked / 60.0;
+                                  _waitHoursController.text = hours == hours.roundToDouble()
+                                      ? hours.toStringAsFixed(0)
+                                      : hours.toStringAsFixed(2);
+                                  setState(() {});
+                                }
+                              },
                               onChanged: (_) => setState(() {}),
                               decoration: const InputDecoration(
                                 labelText: 'Часов ожидания',

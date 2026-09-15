@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../widgets/time_wheel_picker.dart';
+
 import '../../models/app_settings.dart';
 import '../../models/order.dart';
 import '../../repositories/order_repository.dart';
@@ -242,9 +244,10 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
   }
 
   Future<void> _selectTime() async {
-    final result = await showTimePicker(
-      context: context,
+    final result = await showBusTimeWheelPicker(
+      context,
       initialTime: _selectedTime,
+      title: 'Выберите время',
     );
 
     if (result == null) {
@@ -367,54 +370,31 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     return 'за $minutes мин';
   }
 
-  Future<int?> _customReminder(int current) async {
-    final controller = TextEditingController(text: current.toString());
-    final result = await showDialog<int>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Своё время'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'За сколько минут предупредить', suffixText: 'мин'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Отмена')),
-          FilledButton(onPressed: () {
-            final value = int.tryParse(controller.text.trim());
-            if (value != null && value > 0) Navigator.pop(c, value);
-          }, child: const Text('Готово')),
-        ],
-      ),
-    );
-    controller.dispose();
-    return result;
-  }
-
   Widget _reminderPicker({
     required String label,
     required int value,
     required List<int> values,
     required ValueChanged<int> onChanged,
   }) {
-    final all = {...values, value}.toList()..sort();
-    return Row(children: [
-      Expanded(child: DropdownButtonFormField<int>(
-        initialValue: value,
-        decoration: InputDecoration(labelText: label),
-        items: all.map((v) => DropdownMenuItem(value: v, child: Text(_reminderLabel(v)))).toList(),
-        onChanged: (v) { if (v != null) onChanged(v); },
-      )),
-      IconButton(
-        tooltip: 'Задать своё время',
-        icon: const Icon(Icons.tune),
-        onPressed: () async {
-          final custom = await _customReminder(value);
-          if (custom != null) onChanged(custom);
-        },
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () async {
+        final picked = await showBusDurationWheelPicker(
+          context,
+          initialMinutes: value,
+          title: label,
+          maxHours: label.contains('Первое') ? 48 : 24,
+        );
+        if (picked != null) onChanged(picked);
+      },
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          suffixIcon: const Icon(Icons.unfold_more),
+        ),
+        child: Text(_reminderLabel(value)),
       ),
-    ]);
+    );
   }
 
   @override
@@ -526,6 +506,23 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
               if (_type != OrderFormType.fixed) ...[
                 TextFormField(
                   controller: _quantityController,
+                  readOnly: _type == OrderFormType.hourly,
+                  onTap: _type != OrderFormType.hourly
+                      ? null
+                      : () async {
+                          final currentMinutes = ((_quantity <= 0 ? 1 : _quantity) * 60).round();
+                          final picked = await showBusDurationWheelPicker(
+                            context,
+                            initialMinutes: currentMinutes,
+                            title: 'Длительность заказа',
+                            maxHours: 24,
+                          );
+                          if (picked != null) {
+                            final hours = picked / 60.0;
+                            _quantityController.text = _formatNumber(hours);
+                            setState(() {});
+                          }
+                        },
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
