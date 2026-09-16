@@ -1,9 +1,8 @@
-BusControl PRO - iOS Widget build hotfix #2
+BusControl PRO - Widget visual toggle fix
 
-Fixes:
-- Removes ForegroundContinuableIntent conformance that breaks compilation with an iOS 15 deployment target.
-- Uses iOS 26 AppIntent supportedModes instead.
-- Keeps deployment compatibility by gating the new API with @available(iOS 26.0, *).
+Changes:
+- Morning/evening controls use SwiftUI Toggle(isOn:intent:) instead of Button(intent:).
+- The checkmark updates optimistically immediately when tapped.
+- Existing ToggleTripIntent and app/database synchronization remain unchanged.
 
-Replace:
-ios/Shared/BusControlWidgetIntent.swift
+Copy this patch over C:\Projects\bus_control_pro_final with replacement.

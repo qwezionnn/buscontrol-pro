@@ -196,10 +196,19 @@ private struct BusControlHomeWidgetView: View {
     @ViewBuilder
     private func tripControl(title: String, symbol: String, done: Bool, kind: String) -> some View {
         if #available(iOS 17.0, *) {
-            Button(intent: ToggleTripIntent(kind: kind)) {
-                tripButton(title: title, symbol: symbol, done: done)
+            // Use WidgetKit's intent-backed Toggle instead of a Button.
+            // Toggle updates its visual state optimistically as soon as the
+            // user taps it, while ToggleTripIntent keeps the app/database sync.
+            Toggle(isOn: done, intent: ToggleTripIntent(kind: kind)) {
+                HStack(spacing: 8) {
+                    Image(systemName: symbol)
+                        .font(.system(size: 14, weight: .semibold))
+                    Text(title)
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    Spacer(minLength: 2)
+                }
             }
-            .buttonStyle(.plain)
+            .toggleStyle(BusControlTripToggleStyle())
         } else {
             tripButton(title: title, symbol: symbol, done: done)
         }
@@ -254,6 +263,30 @@ private struct BusControlHomeWidgetView: View {
         formatter.locale = Locale(identifier: "ru_RU")
         formatter.dateFormat = "d MMMM, EEEE"
         return formatter.string(from: date).capitalized
+    }
+}
+
+@available(iOS 17.0, *)
+private struct BusControlTripToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 8) {
+            configuration.label
+            Image(systemName: configuration.isOn ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 17, weight: .semibold))
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 11)
+        .frame(maxWidth: .infinity, minHeight: 42)
+        .background(
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .fill(configuration.isOn ? .white.opacity(0.20) : .white.opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .stroke(.white.opacity(configuration.isOn ? 0.24 : 0.10), lineWidth: 0.8)
+        )
+        .contentShape(Rectangle())
     }
 }
 
