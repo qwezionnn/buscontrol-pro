@@ -7,6 +7,9 @@ import '../../models/vehicle.dart';
 import '../../repositories/settings_repository.dart';
 import '../../repositories/vehicle_repository.dart';
 import '../../services/backup_service.dart';
+import '../../services/home_widget_service.dart';
+import '../bus/quick_end_mileage_screen.dart';
+import '../fuel/add_fuel_screen.dart';
 import '../bus/bus_screen.dart';
 import '../calendar/calendar_screen.dart';
 import '../finance/finance_screen.dart';
@@ -21,13 +24,14 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final SettingsRepository _settingsRepository =
       SettingsRepository.instance;
   final VehicleRepository _vehicleRepository =
       VehicleRepository.instance;
   final CloudSyncService _cloudSyncService = CloudSyncService.instance;
   final BackupService _backupService = BackupService.instance;
+  final HomeWidgetService _homeWidgetService = HomeWidgetService.instance;
 
   int _currentIndex = 0;
   int _refreshVersion = 0;
@@ -38,15 +42,18 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _settingsRepository.addListener(_handleChanged);
     _vehicleRepository.addListener(_handleVehicleChanged);
     _cloudSyncService.addListener(_handleCloudChanged);
     _backupService.addListener(_handleBackupRestored);
     _loadVehicles();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncHomeWidget());
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _settingsRepository.removeListener(_handleChanged);
     _vehicleRepository.removeListener(_handleVehicleChanged);
     _cloudSyncService.removeListener(_handleCloudChanged);
@@ -54,6 +61,39 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _syncHomeWidget();
+    }
+  }
+
+  Future<void> _syncHomeWidget() async {
+    final changed = await _homeWidgetService.applyPendingTripActions();
+    if (!mounted) return;
+    if (changed) {
+      setState(() => _refreshVersion++);
+    }
+
+    final quickAction = await _homeWidgetService.consumeQuickAction();
+    if (!mounted || quickAction == null) return;
+
+    Widget? page;
+    if (quickAction == 'mileage') {
+      page = const QuickEndMileageScreen();
+    } else if (quickAction == 'fuel') {
+      page = const AddFuelScreen();
+    }
+    if (page == null) return;
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => page!),
+    );
+    if (!mounted) return;
+    await _homeWidgetService.updateTodaySnapshot();
+    setState(() => _refreshVersion++);
+  }
 
   void _handleBackupRestored() {
     if (!mounted) return;

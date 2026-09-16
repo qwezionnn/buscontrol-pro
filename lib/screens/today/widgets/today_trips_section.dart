@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../models/trip.dart';
 import '../../../repositories/trip_repository.dart';
+import '../../../services/home_widget_service.dart';
 import '../../../widgets/bus_card.dart';
 import '../../trips/add_extra_trip_screen.dart';
 
@@ -78,6 +79,7 @@ class _TodayTripsSectionState extends State<TodayTripsSection> {
         tripId: tripId,
         completed: completed,
       );
+      await HomeWidgetService.instance.updateTodaySnapshot();
 
       await _loadTrips();
     } catch (error) {

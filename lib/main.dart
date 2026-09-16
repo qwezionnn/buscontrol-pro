@@ -9,7 +9,6 @@ import 'app/app.dart';
 import 'core/config/supabase_config.dart';
 import 'database/database_helper.dart';
 import 'services/notification_service.dart';
-import 'models/order.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,22 +37,10 @@ Future<void> main() async {
   await DatabaseHelper.instance.database;
   await NotificationService.instance.initialize();
 
-  // If the app is opened while an order is already inside its Live Activity
-  // countdown window, restore/start the countdown immediately.
+  // Restore/register the nearest upcoming iOS Live Activities. Newly saved
+  // orders and calendar notes are scheduled immediately when they are saved.
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
-    final db = await DatabaseHelper.instance.database;
-    final vehicleId = await DatabaseHelper.instance.getActiveVehicleId();
-    final rows = await db.query(
-      'orders',
-      where: 'vehicle_id = ? AND status = ?',
-      whereArgs: [vehicleId, 'planned'],
-    );
-    for (final row in rows) {
-      await NotificationService.instance.startLiveActivityIfEligible(Order.fromMap(row));
-    }
-  }
-
-  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+    await NotificationService.instance.startNearestLiveActivityIfEligible();
     await NotificationService.instance.startNearestCalendarNoteLiveActivityIfEligible();
   }
 

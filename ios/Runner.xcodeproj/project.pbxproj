@@ -21,6 +21,8 @@
 		A10000000000000000000003 /* BusControlLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* BusControlLiveActivity.swift */; };
 		A10000000000000000000004 /* BusOrderAttributes.swift in Extension Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000012 /* BusOrderAttributes.swift */; };
 		A10000000000000000000005 /* BusControlLiveActivity.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* BusControlLiveActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A10000000000000000000006 /* BusControlWidgetIntent.swift in Runner Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000016 /* BusControlWidgetIntent.swift */; };
+		A10000000000000000000007 /* BusControlWidgetIntent.swift in Extension Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000016 /* BusControlWidgetIntent.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -86,6 +88,7 @@
 		A10000000000000000000012 /* BusOrderAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BusOrderAttributes.swift; path = Shared/BusOrderAttributes.swift; sourceTree = SOURCE_ROOT; };
 		A10000000000000000000013 /* BusControlLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusControlLiveActivity.swift; sourceTree = "<group>"; };
 		A10000000000000000000015 /* Live Activity Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A10000000000000000000016 /* BusControlWidgetIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BusControlWidgetIntent.swift; path = Shared/BusControlWidgetIntent.swift; sourceTree = SOURCE_ROOT; };
 		A10000000000000000000014 /* BusControlLiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BusControlLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -157,6 +160,7 @@
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				A10000000000000000000011 /* LiveActivityManager.swift */,
 				A10000000000000000000012 /* BusOrderAttributes.swift */,
+				A10000000000000000000016 /* BusControlWidgetIntent.swift */,
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 			);
@@ -168,6 +172,7 @@
 			children = (
 				A10000000000000000000013 /* BusControlLiveActivity.swift */,
 				A10000000000000000000012 /* BusOrderAttributes.swift */,
+				A10000000000000000000016 /* BusControlWidgetIntent.swift */,
 				A10000000000000000000015 /* Live Activity Info.plist */,
 			);
 			path = BusControlLiveActivity;
@@ -247,10 +252,11 @@
 						CreatedOnToolsVersion = 14.0;
 						TestTargetID = 97C146ED1CF9000F007C117D;
 					};
-					A10000000000000000000031 = { CreatedOnToolsVersion = 15.0; };
+					A10000000000000000000031 = { CreatedOnToolsVersion = 15.0; SystemCapabilities = { com.apple.ApplicationGroups.iOS = { enabled = 1; }; }; };
 					97C146ED1CF9000F007C117D = {
 						CreatedOnToolsVersion = 7.3.1;
 						LastSwiftMigration = 1100;
+						SystemCapabilities = { com.apple.ApplicationGroups.iOS = { enabled = 1; }; };
 					};
 				};
 			};
@@ -351,6 +357,7 @@
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 				A10000000000000000000001 /* LiveActivityManager.swift in Sources */,
 				A10000000000000000000002 /* BusOrderAttributes.swift in Runner Sources */,
+				A10000000000000000000006 /* BusControlWidgetIntent.swift in Runner Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -358,6 +365,7 @@
 			isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (
 				A10000000000000000000003 /* BusControlLiveActivity.swift in Sources */,
 				A10000000000000000000004 /* BusOrderAttributes.swift in Extension Sources */,
+				A10000000000000000000007 /* BusControlWidgetIntent.swift in Extension Sources */,
 			); runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
@@ -451,6 +459,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				ENABLE_BITCODE = NO;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -630,6 +639,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				ENABLE_BITCODE = NO;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -652,6 +662,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				ENABLE_BITCODE = NO;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -665,9 +676,9 @@
 			};
 			name = Release;
 		};
-		A10000000000000000000061 /* Debug */ = { isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)"; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = BusControlLiveActivity/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 16.1; MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)"; PRODUCT_BUNDLE_IDENTIFIER = com.example.busControlPro.BusControlLiveActivity; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Debug; };
-		A10000000000000000000062 /* Release */ = { isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)"; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = BusControlLiveActivity/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 16.1; MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)"; PRODUCT_BUNDLE_IDENTIFIER = com.example.busControlPro.BusControlLiveActivity; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Release; };
-		A10000000000000000000063 /* Profile */ = { isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)"; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = BusControlLiveActivity/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 16.1; MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)"; PRODUCT_BUNDLE_IDENTIFIER = com.example.busControlPro.BusControlLiveActivity; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Profile; };
+		A10000000000000000000061 /* Debug */ = { isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_ENTITLEMENTS = BusControlLiveActivity/BusControlLiveActivity.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)"; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = BusControlLiveActivity/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 16.1; MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)"; PRODUCT_BUNDLE_IDENTIFIER = com.example.busControlPro.BusControlLiveActivity; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Debug; };
+		A10000000000000000000062 /* Release */ = { isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_ENTITLEMENTS = BusControlLiveActivity/BusControlLiveActivity.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)"; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = BusControlLiveActivity/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 16.1; MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)"; PRODUCT_BUNDLE_IDENTIFIER = com.example.busControlPro.BusControlLiveActivity; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Release; };
+		A10000000000000000000063 /* Profile */ = { isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_ENTITLEMENTS = BusControlLiveActivity/BusControlLiveActivity.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)"; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = BusControlLiveActivity/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 16.1; MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)"; PRODUCT_BUNDLE_IDENTIFIER = com.example.busControlPro.BusControlLiveActivity; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Profile; };
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */

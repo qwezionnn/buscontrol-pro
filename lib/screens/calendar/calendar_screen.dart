@@ -9,6 +9,7 @@ import '../../repositories/fuel_repository.dart';
 import '../../repositories/expense_repository.dart';
 import '../../repositories/daily_log_repository.dart';
 import '../../repositories/calendar_note_repository.dart';
+import '../../services/home_widget_service.dart';
 import '../../widgets/time_wheel_picker.dart';
 import '../../widgets/bus_card.dart';
 import '../expenses/add_expense_screen.dart';
@@ -436,6 +437,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         tripId: id,
         completed: !completed,
       );
+      await HomeWidgetService.instance.updateTodaySnapshot();
       await _load();
       return;
     }
@@ -598,7 +600,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
       selectedTime = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
     }
     var reminderEnabled = existing?['reminder_enabled'] == 1;
-    var reminderMinutes = (existing?['reminder_minutes'] as num?)?.toInt() ?? 30;
+    var reminderMinutes = (existing?['reminder_minutes'] as num?)?.toInt() ?? 60;
+    if (reminderMinutes <= 0) reminderMinutes = 60;
 
     final saved = await showDialog<bool>(
       context: context,
@@ -678,7 +681,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         initialMinutes: reminderMinutes,
                         title: 'За сколько напомнить',
                         maxHours: 48,
-                        allowZero: true,
+                        allowZero: false,
                       );
                       if (value != null) setDialogState(() => reminderMinutes = value);
                     },

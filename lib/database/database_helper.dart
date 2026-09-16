@@ -167,7 +167,7 @@ class DatabaseHelper {
         title TEXT NOT NULL,
         body TEXT,
         reminder_enabled INTEGER NOT NULL DEFAULT 0,
-        reminder_minutes INTEGER NOT NULL DEFAULT 0,
+        reminder_minutes INTEGER NOT NULL DEFAULT 60,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )
@@ -819,7 +819,7 @@ class DatabaseHelper {
         title TEXT NOT NULL,
         body TEXT,
         reminder_enabled INTEGER NOT NULL DEFAULT 0,
-        reminder_minutes INTEGER NOT NULL DEFAULT 0,
+        reminder_minutes INTEGER NOT NULL DEFAULT 60,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )

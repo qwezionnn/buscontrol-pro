@@ -78,27 +78,57 @@ class NotificationService {
     return '$minutes мин';
   }
 
+  Future<void> _scheduleLiveActivity({
+    required int activityId,
+    required String title,
+    required String time,
+    required String note,
+    required DateTime eventAt,
+    required int leadMinutes,
+  }) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
+    if (!eventAt.isAfter(DateTime.now())) return;
+
+    final minutes = leadMinutes <= 0 ? 60 : leadMinutes;
+    final startAt = eventAt.subtract(Duration(minutes: minutes));
+    final now = DateTime.now();
+
+    try {
+      await _liveChannel.invokeMethod(
+        startAt.isAfter(now) ? 'schedule' : 'start',
+        {
+          'orderId': activityId,
+          'title': title,
+          'time': time,
+          'note': note,
+          'orderTimestampMs': eventAt.millisecondsSinceEpoch,
+          'startTimestampMs': startAt.millisecondsSinceEpoch,
+        },
+      );
+    } on PlatformException {
+      // iOS < 26 can't schedule a future Live Activity locally.
+      // The ordinary local notification remains as a fallback there.
+    }
+  }
+
   Future<void> startLiveActivityIfEligible(Order order) async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS || order.id == null || !order.isPlanned) return;
+    if (kIsWeb ||
+        defaultTargetPlatform != TargetPlatform.iOS ||
+        order.id == null ||
+        !order.isPlanned) {
+      return;
+    }
     final at = _date(order);
     if (at == null) return;
 
-    final minutes = order.liveActivityMinutes <= 0 ? 60 : order.liveActivityMinutes;
-    final startAt = at.subtract(Duration(minutes: minutes));
-    final now = DateTime.now();
-    if (now.isBefore(startAt) || !now.isBefore(at)) return;
-
-    try {
-      await _liveChannel.invokeMethod('start', {
-        'orderId': order.id,
-        'title': order.title,
-        'time': order.time,
-        'note': order.note ?? '',
-        'orderTimestampMs': at.millisecondsSinceEpoch,
-      });
-    } on PlatformException {
-      // Live Activities may be disabled by the user or unavailable on this iOS version.
-    }
+    await _scheduleLiveActivity(
+      activityId: order.id!,
+      title: order.title,
+      time: order.time,
+      note: order.note ?? '',
+      eventAt: at,
+      leadMinutes: order.liveActivityMinutes,
+    );
   }
 
   Future<void> startNearestLiveActivityIfEligible() async {
@@ -207,23 +237,40 @@ class NotificationService {
   int _calendarLiveId(int id) => -1000000 - id;
 
   Future<void> startCalendarNoteLiveActivityIfEligible({
-    required int id, required String date, required String? time,
-    required String title, String? body, required bool enabled,
+    required int id,
+    required String date,
+    required String? time,
+    required String title,
+    String? body,
+    required bool enabled,
     required int reminderMinutes,
   }) async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS || !enabled || time == null || time.isEmpty) return;
-    final dp = date.split('-'); final tp = time.split(':');
+    if (kIsWeb ||
+        defaultTargetPlatform != TargetPlatform.iOS ||
+        !enabled ||
+        time == null ||
+        time.isEmpty) {
+      return;
+    }
+    final dp = date.split('-');
+    final tp = time.split(':');
     if (dp.length != 3 || tp.length < 2) return;
-    final at = DateTime(int.parse(dp[0]), int.parse(dp[1]), int.parse(dp[2]), int.parse(tp[0]), int.parse(tp[1]));
-    final now = DateTime.now();
-    final startAt = at.subtract(Duration(minutes: reminderMinutes <= 0 ? 30 : reminderMinutes));
-    if (now.isBefore(startAt) || !now.isBefore(at)) return;
-    try {
-      await _liveChannel.invokeMethod('start', {
-        'orderId': _calendarLiveId(id), 'title': '📌 $title', 'time': time,
-        'note': body ?? '', 'orderTimestampMs': at.millisecondsSinceEpoch,
-      });
-    } on PlatformException {}
+    final at = DateTime(
+      int.parse(dp[0]),
+      int.parse(dp[1]),
+      int.parse(dp[2]),
+      int.parse(tp[0]),
+      int.parse(tp[1]),
+    );
+
+    await _scheduleLiveActivity(
+      activityId: _calendarLiveId(id),
+      title: '📌 $title',
+      time: time,
+      note: body ?? '',
+      eventAt: at,
+      leadMinutes: reminderMinutes <= 0 ? 60 : reminderMinutes,
+    );
   }
 
   Future<void> startNearestCalendarNoteLiveActivityIfEligible() async {
@@ -237,7 +284,7 @@ class NotificationService {
       if(dp.length!=3||tp.length<2) continue;
       final at=DateTime(int.parse(dp[0]),int.parse(dp[1]),int.parse(dp[2]),int.parse(tp[0]),int.parse(tp[1]));
       if(!at.isAfter(now)) continue;
-      await startCalendarNoteLiveActivityIfEligible(id:(row['id'] as num).toInt(), date:row['date'].toString(), time:row['time']?.toString(), title:row['title']?.toString()??'Заметка', body:row['body']?.toString(), enabled:true, reminderMinutes:(row['reminder_minutes'] as num?)?.toInt()??30);
+      await startCalendarNoteLiveActivityIfEligible(id:(row['id'] as num).toInt(), date:row['date'].toString(), time:row['time']?.toString(), title:row['title']?.toString()??'Заметка', body:row['body']?.toString(), enabled:true, reminderMinutes:(row['reminder_minutes'] as num?)?.toInt()??60);
       break;
     }
   }
@@ -263,9 +310,19 @@ class NotificationService {
     if (kIsWeb) return;
     await initialize();
     await _plugin.cancel(_calendarNoteId(id));
+    await endLiveActivity(_calendarLiveId(id));
     if (!enabled || time == null || time.isEmpty) return;
 
-    await startCalendarNoteLiveActivityIfEligible(id: id, date: date, time: time, title: title, body: body, enabled: enabled, reminderMinutes: reminderMinutes);
+    final effectiveReminderMinutes = reminderMinutes <= 0 ? 60 : reminderMinutes;
+    await startCalendarNoteLiveActivityIfEligible(
+      id: id,
+      date: date,
+      time: time,
+      title: title,
+      body: body,
+      enabled: enabled,
+      reminderMinutes: effectiveReminderMinutes,
+    );
 
     final dp = date.split('-');
     final tp = time.split(':');
@@ -274,7 +331,7 @@ class NotificationService {
       int.parse(dp[0]), int.parse(dp[1]), int.parse(dp[2]),
       int.parse(tp[0]), int.parse(tp[1]),
     );
-    final when = eventAt.subtract(Duration(minutes: reminderMinutes));
+    final when = eventAt.subtract(Duration(minutes: effectiveReminderMinutes));
     if (!when.isAfter(DateTime.now())) return;
 
     final note = body?.trim();

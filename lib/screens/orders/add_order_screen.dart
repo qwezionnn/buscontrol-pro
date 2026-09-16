@@ -142,8 +142,8 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
       _intercityRate = settings.intercityOrderRate;
       _reminderHours = settings.orderReminderHours;
       if (widget.order == null) {
-        _firstReminderMinutes = 720;
-        _liveActivityMinutes = settings.orderReminderHours * 60;
+        _firstReminderMinutes = settings.orderReminderHours * 60;
+        _liveActivityMinutes = 60;
       }
 
       if (widget.order == null) {
@@ -373,7 +373,6 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
   Widget _reminderPicker({
     required String label,
     required int value,
-    required List<int> values,
     required ValueChanged<int> onChanged,
   }) {
     return InkWell(
@@ -683,14 +682,12 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
               _reminderPicker(
                 label: 'Первое уведомление',
                 value: _firstReminderMinutes,
-                values: const [360, 720, 1440],
                 onChanged: (v) => setState(() => _firstReminderMinutes = v),
               ),
               const SizedBox(height: 10),
               _reminderPicker(
                 label: 'Live Activity / второе',
                 value: _liveActivityMinutes,
-                values: const [30, 60, 90, 120, 180],
                 onChanged: (v) => setState(() => _liveActivityMinutes = v),
               ),
               const SizedBox(height: 6),
