@@ -121,20 +121,22 @@ import WidgetKit
         // still resolve to the same final value instead of toggling back.
         if let value = appDefaults.object(forKey: "widget_pending_morning_state_app") as? NSNumber {
           response["morning"] = value.boolValue
+          // Keep the shared pending value until Flutter has committed the
+          // state to SQLite and updateSnapshot confirms it. The widget provider
+          // uses this value during the short transition, preventing the
+          // optimistic toggle from snapping back to the old timeline entry.
           appDefaults.removeObject(forKey: "widget_pending_morning_state_app")
-          defaults?.removeObject(forKey: "pending_morning_state")
         } else if let value = defaults?.object(forKey: "pending_morning_state") as? NSNumber {
           response["morning"] = value.boolValue
-          defaults?.removeObject(forKey: "pending_morning_state")
+          // Do not clear pending here; updateSnapshot clears it only after the
+          // real database state matches the requested widget state.
         }
 
         if let value = appDefaults.object(forKey: "widget_pending_evening_state_app") as? NSNumber {
           response["evening"] = value.boolValue
           appDefaults.removeObject(forKey: "widget_pending_evening_state_app")
-          defaults?.removeObject(forKey: "pending_evening_state")
         } else if let value = defaults?.object(forKey: "pending_evening_state") as? NSNumber {
           response["evening"] = value.boolValue
-          defaults?.removeObject(forKey: "pending_evening_state")
         }
 
         // Clear legacy counter keys from previous builds so an old pending value
@@ -152,9 +154,25 @@ import WidgetKit
           result(FlutterError(code: "bad_args", message: "Missing widget snapshot fields", details: nil))
           return
         }
+        // Commit the authoritative app/database snapshot first.
         defaults?.set(date, forKey: "snapshot_date")
         defaults?.set(morningDone, forKey: "morning_done")
         defaults?.set(eveningDone, forKey: "evening_done")
+
+        // A widget interaction is two-phase: the intent writes a pending target
+        // immediately, then Flutter commits it to SQLite. Only clear pending
+        // after this snapshot confirms the exact requested value. This prevents
+        // WidgetKit's automatic timeline reload from restoring stale state.
+        if let pending = defaults?.object(forKey: "pending_morning_state") as? NSNumber,
+           pending.boolValue == morningDone {
+          defaults?.removeObject(forKey: "pending_morning_state")
+        }
+        if let pending = defaults?.object(forKey: "pending_evening_state") as? NSNumber,
+           pending.boolValue == eveningDone {
+          defaults?.removeObject(forKey: "pending_evening_state")
+        }
+        defaults?.synchronize()
+
         if #available(iOS 14.0, *) {
           WidgetCenter.shared.reloadTimelines(ofKind: "BusControlHomeWidget")
         }

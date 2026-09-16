@@ -110,10 +110,23 @@ private struct BusControlWidgetProvider: TimelineProvider {
         let snapshotDate = defaults?.string(forKey: "snapshot_date")
         let isCurrent = snapshotDate == today
 
+        // Prefer an in-flight widget request over the last committed snapshot.
+        // Flutter clears these pending values only after SQLite and the shared
+        // snapshot have been updated to the same target state.
+        let pendingMorning = defaults?.object(forKey: "pending_morning_state") as? NSNumber
+        let pendingEvening = defaults?.object(forKey: "pending_evening_state") as? NSNumber
+
+        let morningDone = isCurrent
+            ? (pendingMorning?.boolValue ?? (defaults?.bool(forKey: "morning_done") ?? false))
+            : false
+        let eveningDone = isCurrent
+            ? (pendingEvening?.boolValue ?? (defaults?.bool(forKey: "evening_done") ?? false))
+            : false
+
         return BusControlWidgetEntry(
             date: Date(),
-            morningDone: isCurrent ? (defaults?.bool(forKey: "morning_done") ?? false) : false,
-            eveningDone: isCurrent ? (defaults?.bool(forKey: "evening_done") ?? false) : false
+            morningDone: morningDone,
+            eveningDone: eveningDone
         )
     }
 
