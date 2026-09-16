@@ -14,6 +14,17 @@
       "versions": [
         {
           "version": "5.0.0",
+          "buildVersion": "40",
+          "marketingVersion": "5.0.0 (40)",
+          "date": "2026-09-16T14:57:06.911942+00:00",
+          "localizedDescription": "Automatic BusControl PRO build.",
+          "downloadURL": "https://github.com/qwezionnn/buscontrol-pro/releases/download/v5.0.0-40/BusControl_PRO.ipa",
+          "size": 12048306,
+          "sha256": "774bbe16e9a487b0b4abed271cfa069b90f13be645bbe752060f3843017a7605",
+          "minOSVersion": "15.0"
+        },
+        {
+          "version": "5.0.0",
           "buildVersion": "39",
           "marketingVersion": "5.0.0 (39)",
           "date": "2026-09-16T14:35:11.125599+00:00",
@@ -353,6 +364,9 @@
           "sha256": "8e8a46b41c48a3c3a6250a625220d028094a015033bd4e02e4df00b6d4642783",
           "minOSVersion": "13.0"
         }
+      ],
+      "entitlements": [
+        "com.apple.security.application-groups"
       ]
     }
   ]
