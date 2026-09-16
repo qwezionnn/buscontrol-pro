@@ -1,7 +1,9 @@
-BusControl PRO - iOS Widget build hotfix
+BusControl PRO - iOS Widget build hotfix #2
 
-Fixes Xcode error:
-'ForegroundContinuableIntent' is unavailable in application extensions for iOS
+Fixes:
+- Removes ForegroundContinuableIntent conformance that breaks compilation with an iOS 15 deployment target.
+- Uses iOS 26 AppIntent supportedModes instead.
+- Keeps deployment compatibility by gating the new API with @available(iOS 26.0, *).
 
-Replace files preserving folder structure.
-Then run flutter analyze and push/build again.
+Replace:
+ios/Shared/BusControlWidgetIntent.swift

@@ -9,6 +9,15 @@ struct ToggleTripIntent: AppIntent {
     static var title: LocalizedStringResource = "Отметить рейс"
     static var description = IntentDescription("Отмечает утренний или вечерний рейс в BusControl PRO.")
 
+    // iOS 26 replacement for ForegroundContinuableIntent.
+    // This lets the intent start in the BusControl app process in the
+    // background without forcing the app UI to open. Keeping it gated to
+    // iOS 26 preserves the project's iOS 15 deployment target.
+    @available(iOS 26.0, *)
+    static var supportedModes: IntentModes {
+        [.background, .foreground(.dynamic)]
+    }
+
     @Parameter(title: "Тип рейса")
     var kind: String
 
@@ -37,12 +46,9 @@ struct ToggleTripIntent: AppIntent {
             : "widget_pending_evening_toggle_count"
         let nextValue = !(sharedDefaults?.bool(forKey: stateKey) ?? false)
 
-        // Keep the widget UI responsive through the App Group when the signing
-        // environment supports it. SideStore can currently break App Group
-        // sharing between the host app and its widget extension, so the host
-        // app also receives an idempotent toggle counter through its own
-        // UserDefaults. ForegroundContinuableIntent makes WidgetKit execute
-        // perform() in the application process without forcing the UI open.
+        // App Group keeps the widget UI in sync when the signing environment
+        // supports it. UserDefaults.standard provides the host-app fallback
+        // when the intent is executed in the BusControl process on iOS 26.
         sharedDefaults?.set(nextValue, forKey: stateKey)
         sharedDefaults?.set(nextValue, forKey: pendingKey)
 
@@ -61,12 +67,3 @@ struct ToggleTripIntent: AppIntent {
         return formatter.string(from: date)
     }
 }
-
-// The same intent source is compiled into both Runner and the WidgetKit
-// extension. ForegroundContinuableIntent must only be visible to the host
-// application; otherwise Xcode rejects it for an application extension.
-// This keeps widget taps executing in the BusControl app process without
-// forcing the UI to open, while the widget target still compiles normally.
-@available(iOS 17.0, *)
-@available(iOSApplicationExtension, unavailable)
-extension ToggleTripIntent: ForegroundContinuableIntent {}
