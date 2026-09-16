@@ -116,28 +116,31 @@ import WidgetKit
         var response: [String: Any] = [:]
         let appDefaults = UserDefaults.standard
 
-        let morningToggleCount = appDefaults.integer(forKey: "widget_pending_morning_toggle_count")
-        let eveningToggleCount = appDefaults.integer(forKey: "widget_pending_evening_toggle_count")
-
-        if morningToggleCount > 0 {
-          response["morningToggleCount"] = morningToggleCount
-          appDefaults.removeObject(forKey: "widget_pending_morning_toggle_count")
-          // Avoid applying the same interaction twice when App Groups happen
-          // to work correctly in the current signing environment.
+        // New idempotent bridge: the widget stores the exact desired state.
+        // If WidgetKit invokes the intent more than once, duplicate executions
+        // still resolve to the same final value instead of toggling back.
+        if let value = appDefaults.object(forKey: "widget_pending_morning_state_app") as? NSNumber {
+          response["morning"] = value.boolValue
+          appDefaults.removeObject(forKey: "widget_pending_morning_state_app")
           defaults?.removeObject(forKey: "pending_morning_state")
         } else if let value = defaults?.object(forKey: "pending_morning_state") as? NSNumber {
           response["morning"] = value.boolValue
           defaults?.removeObject(forKey: "pending_morning_state")
         }
 
-        if eveningToggleCount > 0 {
-          response["eveningToggleCount"] = eveningToggleCount
-          appDefaults.removeObject(forKey: "widget_pending_evening_toggle_count")
+        if let value = appDefaults.object(forKey: "widget_pending_evening_state_app") as? NSNumber {
+          response["evening"] = value.boolValue
+          appDefaults.removeObject(forKey: "widget_pending_evening_state_app")
           defaults?.removeObject(forKey: "pending_evening_state")
         } else if let value = defaults?.object(forKey: "pending_evening_state") as? NSNumber {
           response["evening"] = value.boolValue
           defaults?.removeObject(forKey: "pending_evening_state")
         }
+
+        // Clear legacy counter keys from previous builds so an old pending value
+        // can never flip the state again after this update.
+        appDefaults.removeObject(forKey: "widget_pending_morning_toggle_count")
+        appDefaults.removeObject(forKey: "widget_pending_evening_toggle_count")
 
         result(response)
 

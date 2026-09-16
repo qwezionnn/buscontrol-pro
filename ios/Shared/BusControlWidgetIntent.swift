@@ -21,10 +21,17 @@ struct ToggleTripIntent: AppIntent {
     @Parameter(title: "Тип рейса")
     var kind: String
 
-    init() {}
+    @Parameter(title: "Текущее состояние")
+    var currentState: Bool
 
-    init(kind: String) {
+    init() {
+        self.kind = "morning"
+        self.currentState = false
+    }
+
+    init(kind: String, currentState: Bool) {
         self.kind = kind
+        self.currentState = currentState
     }
 
     func perform() async throws -> some IntentResult {
@@ -41,23 +48,25 @@ struct ToggleTripIntent: AppIntent {
         let isMorning = kind == "morning"
         let stateKey = isMorning ? "morning_done" : "evening_done"
         let pendingKey = isMorning ? "pending_morning_state" : "pending_evening_state"
-        let counterKey = isMorning
-            ? "widget_pending_morning_toggle_count"
-            : "widget_pending_evening_toggle_count"
-        let nextValue = !(sharedDefaults?.bool(forKey: stateKey) ?? false)
+        let appPendingKey = isMorning
+            ? "widget_pending_morning_state_app"
+            : "widget_pending_evening_state_app"
 
-        // App Group keeps the widget UI in sync when the signing environment
-        // supports it. UserDefaults.standard provides the host-app fallback
-        // when the intent is executed in the BusControl process on iOS 26.
-        sharedDefaults?.set(nextValue, forKey: stateKey)
-        sharedDefaults?.set(nextValue, forKey: pendingKey)
-        // Flush the shared snapshot before the interaction finishes.
-        // Do not force an immediate WidgetKit timeline reload here: the SwiftUI
-        // Toggle already updates optimistically, while an immediate reload can
-        // redraw an older timeline entry and make the checkmark jump back.
+        // IMPORTANT: derive the requested value from the timeline entry that the
+        // user actually tapped, not from UserDefaults. WidgetKit may execute an
+        // interactive intent more than once in some signing/runtime scenarios.
+        // Writing an explicit target value makes the action idempotent: two
+        // executions both set TRUE (or both set FALSE) instead of toggling twice.
+        let targetValue = !currentState
+
+        // Shared value drives the widget snapshot when App Groups are available.
+        sharedDefaults?.set(targetValue, forKey: stateKey)
+        sharedDefaults?.set(targetValue, forKey: pendingKey)
         sharedDefaults?.synchronize()
 
-        appDefaults.set(appDefaults.integer(forKey: counterKey) + 1, forKey: counterKey)
+        // Host-app fallback. Store the desired state, never a toggle counter.
+        // Repeated executions simply overwrite the same value.
+        appDefaults.set(targetValue, forKey: appPendingKey)
         appDefaults.synchronize()
 
         return .result()

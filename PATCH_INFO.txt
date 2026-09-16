@@ -1,10 +1,11 @@
-BusControl PRO — widget + Russian dates hotfix
+BusControl PRO — Widget toggle idempotency fix
 
-1. Widget morning/evening checkmark no longer forces an immediate stale timeline reload.
-2. App locale is fixed to ru_RU with Material/Cupertino/Widgets localization delegates.
-3. Cupertino date wheels (including maintenance) show Russian month names.
-4. Maintenance "По сроку" date wheel is more compact and the comment field sits higher.
+Fixes the issue where tapping Morning/Evening briefly checked the item and then immediately unchecked it in both the widget and app.
 
-After unpacking run:
-  flutter pub get
-  flutter analyze
+Cause: the interactive intent could be executed more than once; the old implementation treated each execution as a toggle.
+Fix: the widget now sends an explicit target state derived from the rendered state. Repeated executions write the same target value, so they cannot toggle back.
+
+Files:
+- ios/Shared/BusControlWidgetIntent.swift
+- ios/BusControlLiveActivity/BusControlLiveActivity.swift
+- ios/Runner/AppDelegate.swift

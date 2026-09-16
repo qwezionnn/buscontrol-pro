@@ -199,7 +199,7 @@ private struct BusControlHomeWidgetView: View {
             // Use WidgetKit's intent-backed Toggle instead of a Button.
             // Toggle updates its visual state optimistically as soon as the
             // user taps it, while ToggleTripIntent keeps the app/database sync.
-            Toggle(isOn: done, intent: ToggleTripIntent(kind: kind)) {
+            Toggle(isOn: done, intent: ToggleTripIntent(kind: kind, currentState: done)) {
                 HStack(spacing: 8) {
                     Image(systemName: symbol)
                         .font(.system(size: 14, weight: .semibold))
