@@ -53,5 +53,9 @@ Future<void> main() async {
     }
   }
 
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+    await NotificationService.instance.startNearestCalendarNoteLiveActivityIfEligible();
+  }
+
   runApp(const BusControlApp());
 }

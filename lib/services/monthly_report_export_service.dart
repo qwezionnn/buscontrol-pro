@@ -19,6 +19,11 @@ class MonthlyExportOptions {
     this.expenses = true,
     this.repairs = true,
     this.mileage = true,
+    this.summaryTrips = true,
+    this.summaryOrders = true,
+    this.summaryFuel = true,
+    this.summaryExpenses = true,
+    this.summaryMileage = true,
   });
 
   final bool summary;
@@ -28,6 +33,11 @@ class MonthlyExportOptions {
   final bool expenses;
   final bool repairs;
   final bool mileage;
+  final bool summaryTrips;
+  final bool summaryOrders;
+  final bool summaryFuel;
+  final bool summaryExpenses;
+  final bool summaryMileage;
 
   bool get hasAny =>
       summary || trips || orders || fuel || expenses || repairs || mileage;
@@ -224,7 +234,7 @@ class MonthlyReportExportService {
 
     if (options.summary) {
       content.addAll([
-        _summaryCard(data.report, stats),
+        _summaryCard(data.report, stats, options),
         pw.SizedBox(height: 22),
       ]);
     }
@@ -245,6 +255,7 @@ class MonthlyReportExportService {
               'Рейс',
               'Ожидание',
               'Итого',
+              'Комментарий',
             ],
             data.trips.map((trip) {
               final wait = _waitHours(trip) > 0
@@ -258,6 +269,7 @@ class MonthlyReportExportService {
                 _money(_tripBase(trip)),
                 wait,
                 _money(_tripTotal(trip)),
+                trip['price_note']?.toString() ?? '',
               ];
             }).toList(),
           ),
@@ -403,19 +415,23 @@ class MonthlyReportExportService {
     return document.save();
   }
 
-  pw.Widget _summaryCard(MonthReport report, _TripStats stats) {
+  pw.Widget _summaryCard(MonthReport report, _TripStats stats, MonthlyExportOptions options) {
     final rows = <List<String>>[
-      ['Полных рейсов (утро + вечер)', '${stats.fullDays}'],
-      ['Неполных дней', '${stats.partialDays}'],
-      ['Утренних поездок', '${stats.morningCount} • ${_money(stats.morningAmount)}'],
-      ['Вечерних поездок', '${stats.eveningCount} • ${_money(stats.eveningAmount)}'],
-      ['Доп. рейсов', '${stats.extraCount} • ${_money(stats.extraTotalAmount)}'],
-      ['Ожидание в доп. рейсах', '${_number(stats.extraWaitHours)} ч • ${_money(stats.extraWaitAmount)}'],
-      ['Доход от заказов', _money(report.orderIncome)],
-      ['Заправлено топлива', '${_number(report.fuelLiters)} л'],
-      ['Расходы на топливо', _money(report.fuelCost)],
-      ['Другие расходы', _money(report.expenseCost)],
-      ['Пробег', '${report.distance} км'],
+      if (options.summaryTrips) ...[
+        ['Полных рейсов (утро + вечер)', '${stats.fullDays}'],
+        ['Неполных дней', '${stats.partialDays}'],
+        ['Утренних поездок', '${stats.morningCount} • ${_money(stats.morningAmount)}'],
+        ['Вечерних поездок', '${stats.eveningCount} • ${_money(stats.eveningAmount)}'],
+        ['Доп. рейсов', '${stats.extraCount} • ${_money(stats.extraTotalAmount)}'],
+        ['Ожидание в доп. рейсах', '${_number(stats.extraWaitHours)} ч • ${_money(stats.extraWaitAmount)}'],
+      ],
+      if (options.summaryOrders) ['Доход от заказов', _money(report.orderIncome)],
+      if (options.summaryFuel) ...[
+        ['Заправлено топлива', '${_number(report.fuelLiters)} л'],
+        ['Расходы на топливо', _money(report.fuelCost)],
+      ],
+      if (options.summaryExpenses) ['Другие расходы', _money(report.expenseCost)],
+      if (options.summaryMileage) ['Пробег', '${report.distance} км'],
     ];
 
     return pw.Container(
@@ -536,16 +552,16 @@ class MonthlyReportExportService {
       final summary = excel['Сводка'];
       summary.appendRow([TextCellValue('Сводка — ${_monthTitle(month)}')]);
       summary.appendRow([TextCellValue('Показатель'), TextCellValue('Количество'), TextCellValue('Сумма')]);
-      summary.appendRow([TextCellValue('Полный рейс (утро + вечер)'), IntCellValue(stats.fullDays), DoubleCellValue(stats.regularAmount)]);
-      summary.appendRow([TextCellValue('Неполный день'), IntCellValue(stats.partialDays), TextCellValue('')]);
-      summary.appendRow([TextCellValue('Утренние поездки'), IntCellValue(stats.morningCount), DoubleCellValue(stats.morningAmount)]);
-      summary.appendRow([TextCellValue('Вечерние поездки'), IntCellValue(stats.eveningCount), DoubleCellValue(stats.eveningAmount)]);
-      summary.appendRow([TextCellValue('Дополнительные рейсы'), IntCellValue(stats.extraCount), DoubleCellValue(stats.extraTotalAmount)]);
-      summary.appendRow([TextCellValue('Ожидание в доп. рейсах, часов'), DoubleCellValue(stats.extraWaitHours), DoubleCellValue(stats.extraWaitAmount)]);
-      summary.appendRow([TextCellValue('Заказы'), IntCellValue(data.report.completedOrders), DoubleCellValue(data.report.orderIncome)]);
-      summary.appendRow([TextCellValue('Топливо, л'), DoubleCellValue(data.report.fuelLiters), DoubleCellValue(data.report.fuelCost)]);
-      summary.appendRow([TextCellValue('Другие расходы'), TextCellValue(''), DoubleCellValue(data.report.expenseCost)]);
-      summary.appendRow([TextCellValue('Пробег, км'), IntCellValue(data.report.distance), TextCellValue('')]);
+      if (options.summaryTrips) summary.appendRow([TextCellValue('Полный рейс (утро + вечер)'), IntCellValue(stats.fullDays), DoubleCellValue(stats.regularAmount)]);
+      if (options.summaryTrips) summary.appendRow([TextCellValue('Неполный день'), IntCellValue(stats.partialDays), TextCellValue('')]);
+      if (options.summaryTrips) summary.appendRow([TextCellValue('Утренние поездки'), IntCellValue(stats.morningCount), DoubleCellValue(stats.morningAmount)]);
+      if (options.summaryTrips) summary.appendRow([TextCellValue('Вечерние поездки'), IntCellValue(stats.eveningCount), DoubleCellValue(stats.eveningAmount)]);
+      if (options.summaryTrips) summary.appendRow([TextCellValue('Дополнительные рейсы'), IntCellValue(stats.extraCount), DoubleCellValue(stats.extraTotalAmount)]);
+      if (options.summaryTrips) summary.appendRow([TextCellValue('Ожидание в доп. рейсах, часов'), DoubleCellValue(stats.extraWaitHours), DoubleCellValue(stats.extraWaitAmount)]);
+      if (options.summaryOrders) summary.appendRow([TextCellValue('Заказы'), IntCellValue(data.report.completedOrders), DoubleCellValue(data.report.orderIncome)]);
+      if (options.summaryFuel) summary.appendRow([TextCellValue('Топливо, л'), DoubleCellValue(data.report.fuelLiters), DoubleCellValue(data.report.fuelCost)]);
+      if (options.summaryExpenses) summary.appendRow([TextCellValue('Другие расходы'), TextCellValue(''), DoubleCellValue(data.report.expenseCost)]);
+      if (options.summaryMileage) summary.appendRow([TextCellValue('Пробег, км'), IntCellValue(data.report.distance), TextCellValue('')]);
       excel.setDefaultSheet('Сводка');
     }
 
@@ -561,6 +577,7 @@ class MonthlyReportExportService {
         TextCellValue('Цена ожидания/ч'),
         TextCellValue('Ожидание, сумма'),
         TextCellValue('Итого'),
+        TextCellValue('Комментарий'),
       ]);
       for (final trip in data.trips) {
         sheet.appendRow([
@@ -573,6 +590,7 @@ class MonthlyReportExportService {
           DoubleCellValue(_waitRate(trip)),
           DoubleCellValue(_waitTotal(trip)),
           DoubleCellValue(_tripTotal(trip)),
+          TextCellValue(trip['price_note']?.toString() ?? ''),
         ]);
       }
     }

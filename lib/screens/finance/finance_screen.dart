@@ -427,6 +427,11 @@ class _FinanceScreenState extends State<FinanceScreen> {
     var expenses = true;
     var repairs = true;
     var mileage = true;
+    var summaryTrips = true;
+    var summaryOrders = true;
+    var summaryFuel = true;
+    var summaryExpenses = true;
+    var summaryMileage = true;
 
     return showDialog<MonthlyExportOptions>(
       context: context,
@@ -446,6 +451,17 @@ class _FinanceScreenState extends State<FinanceScreen> {
                     title: const Text('Общая сводка'),
                     onChanged: (v) => setLocal(() => summary = v ?? false),
                   ),
+                  if (summary)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 24),
+                      child: Column(children: [
+                        CheckboxListTile(value: summaryTrips, dense: true, contentPadding: EdgeInsets.zero, title: const Text('Рейсы: утро, вечер, доп.'), onChanged: (v) => setLocal(() => summaryTrips = v ?? false)),
+                        CheckboxListTile(value: summaryOrders, dense: true, contentPadding: EdgeInsets.zero, title: const Text('Заказы'), onChanged: (v) => setLocal(() => summaryOrders = v ?? false)),
+                        CheckboxListTile(value: summaryFuel, dense: true, contentPadding: EdgeInsets.zero, title: const Text('Топливо'), onChanged: (v) => setLocal(() => summaryFuel = v ?? false)),
+                        CheckboxListTile(value: summaryExpenses, dense: true, contentPadding: EdgeInsets.zero, title: const Text('Другие расходы'), onChanged: (v) => setLocal(() => summaryExpenses = v ?? false)),
+                        CheckboxListTile(value: summaryMileage, dense: true, contentPadding: EdgeInsets.zero, title: const Text('Пробег'), onChanged: (v) => setLocal(() => summaryMileage = v ?? false)),
+                      ]),
+                    ),
                   CheckboxListTile(
                     value: trips,
                     contentPadding: EdgeInsets.zero,
@@ -502,6 +518,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                   expenses = true;
                   repairs = true;
                   mileage = true;
+                  summaryTrips = true; summaryOrders = true; summaryFuel = true; summaryExpenses = true; summaryMileage = true;
                 }),
                 child: const Text('Выбрать всё'),
               ),
@@ -517,6 +534,11 @@ class _FinanceScreenState extends State<FinanceScreen> {
                             expenses: expenses,
                             repairs: repairs,
                             mileage: mileage,
+                            summaryTrips: summaryTrips,
+                            summaryOrders: summaryOrders,
+                            summaryFuel: summaryFuel,
+                            summaryExpenses: summaryExpenses,
+                            summaryMileage: summaryMileage,
                           ),
                         )
                     : null,

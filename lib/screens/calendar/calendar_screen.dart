@@ -459,7 +459,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
       );
       if (ok == true) {
         final value = double.tryParse(priceController.text.trim().replaceAll(',', '.'));
-        if (value != null && value > 0) {
+        if (value != null && value >= 0) {
           await TripRepository.instance.editStandardTrip(tripId: id, price: value, note: noteController.text);
           await _load();
         }
@@ -827,7 +827,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     _eventTile(
                       Icons.directions_bus,
                       trip['title']?.toString() ?? 'Рейс',
-                      '${trip['completed'] == 1 ? 'Выполнен' : 'Не выполнен'} · ${_money(((trip['price'] as num?)?.toDouble() ?? 0) + (((trip['wait_hours'] as num?)?.toDouble() ?? 0) * ((trip['wait_rate'] as num?)?.toDouble() ?? 0)))}${((trip['wait_hours'] as num?)?.toDouble() ?? 0) > 0 ? ' · ожидание ${((trip['wait_hours'] as num?)?.toDouble() ?? 0).toStringAsFixed(1)} ч' : ''}',
+                      [
+                        '${trip['completed'] == 1 ? 'Выполнен' : 'Не выполнен'} · ${_money(((trip['price'] as num?)?.toDouble() ?? 0) + (((trip['wait_hours'] as num?)?.toDouble() ?? 0) * ((trip['wait_rate'] as num?)?.toDouble() ?? 0)))}${((trip['wait_hours'] as num?)?.toDouble() ?? 0) > 0 ? ' · ожидание ${((trip['wait_hours'] as num?)?.toDouble() ?? 0).toStringAsFixed(1)} ч' : ''}',
+                        if ((trip['price_note']?.toString() ?? '').trim().isNotEmpty) trip['price_note'].toString(),
+                      ].join(' • '),
                       onTap: () {
                         Navigator.pop(context);
                         Future<void>.delayed(

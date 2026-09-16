@@ -203,12 +203,52 @@ class NotificationService {
     await endLiveActivity(id);
   }
 
+
+  int _calendarLiveId(int id) => -1000000 - id;
+
+  Future<void> startCalendarNoteLiveActivityIfEligible({
+    required int id, required String date, required String? time,
+    required String title, String? body, required bool enabled,
+    required int reminderMinutes,
+  }) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS || !enabled || time == null || time.isEmpty) return;
+    final dp = date.split('-'); final tp = time.split(':');
+    if (dp.length != 3 || tp.length < 2) return;
+    final at = DateTime(int.parse(dp[0]), int.parse(dp[1]), int.parse(dp[2]), int.parse(tp[0]), int.parse(tp[1]));
+    final now = DateTime.now();
+    final startAt = at.subtract(Duration(minutes: reminderMinutes <= 0 ? 30 : reminderMinutes));
+    if (now.isBefore(startAt) || !now.isBefore(at)) return;
+    try {
+      await _liveChannel.invokeMethod('start', {
+        'orderId': _calendarLiveId(id), 'title': '📌 $title', 'time': time,
+        'note': body ?? '', 'orderTimestampMs': at.millisecondsSinceEpoch,
+      });
+    } on PlatformException {}
+  }
+
+  Future<void> startNearestCalendarNoteLiveActivityIfEligible() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
+    final db = await DatabaseHelper.instance.database;
+    final vehicleId = await DatabaseHelper.instance.getActiveVehicleId();
+    final rows = await db.query('calendar_notes', where: 'vehicle_id = ? AND reminder_enabled = 1 AND time IS NOT NULL', whereArgs: [vehicleId], orderBy: 'date ASC, time ASC');
+    final now = DateTime.now();
+    for (final row in rows) {
+      final dp=(row['date']?.toString()??'').split('-'); final tp=(row['time']?.toString()??'').split(':');
+      if(dp.length!=3||tp.length<2) continue;
+      final at=DateTime(int.parse(dp[0]),int.parse(dp[1]),int.parse(dp[2]),int.parse(tp[0]),int.parse(tp[1]));
+      if(!at.isAfter(now)) continue;
+      await startCalendarNoteLiveActivityIfEligible(id:(row['id'] as num).toInt(), date:row['date'].toString(), time:row['time']?.toString(), title:row['title']?.toString()??'Заметка', body:row['body']?.toString(), enabled:true, reminderMinutes:(row['reminder_minutes'] as num?)?.toInt()??30);
+      break;
+    }
+  }
+
   int _calendarNoteId(int id) => 850000 + id;
 
   Future<void> cancelCalendarNote(int id) async {
     if (kIsWeb) return;
     await initialize();
     await _plugin.cancel(_calendarNoteId(id));
+    await endLiveActivity(_calendarLiveId(id));
   }
 
   Future<void> scheduleCalendarNote({
@@ -224,6 +264,8 @@ class NotificationService {
     await initialize();
     await _plugin.cancel(_calendarNoteId(id));
     if (!enabled || time == null || time.isEmpty) return;
+
+    await startCalendarNoteLiveActivityIfEligible(id: id, date: date, time: time, title: title, body: body, enabled: enabled, reminderMinutes: reminderMinutes);
 
     final dp = date.split('-');
     final tp = time.split(':');

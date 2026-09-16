@@ -142,7 +142,7 @@ class _TodayTripsSectionState extends State<TodayTripsSection> {
     );
     if (ok == true) {
       final value = double.tryParse(price.text.trim().replaceAll(',', '.'));
-      if (value != null && value > 0) {
+      if (value != null && value >= 0) {
         await _repository.editStandardTrip(tripId: trip.id!, price: value, note: note.text);
         await _loadTrips();
       }
