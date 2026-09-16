@@ -5,7 +5,7 @@ import WidgetKit
 let busControlAppGroup = "group.com.example.busControlPro.shared"
 
 @available(iOS 17.0, *)
-struct ToggleTripIntent: AppIntent, ForegroundContinuableIntent {
+struct ToggleTripIntent: AppIntent {
     static var title: LocalizedStringResource = "Отметить рейс"
     static var description = IntentDescription("Отмечает утренний или вечерний рейс в BusControl PRO.")
 
@@ -61,3 +61,12 @@ struct ToggleTripIntent: AppIntent, ForegroundContinuableIntent {
         return formatter.string(from: date)
     }
 }
+
+// The same intent source is compiled into both Runner and the WidgetKit
+// extension. ForegroundContinuableIntent must only be visible to the host
+// application; otherwise Xcode rejects it for an application extension.
+// This keeps widget taps executing in the BusControl app process without
+// forcing the UI to open, while the widget target still compiles normally.
+@available(iOS 17.0, *)
+@available(iOSApplicationExtension, unavailable)
+extension ToggleTripIntent: ForegroundContinuableIntent {}
