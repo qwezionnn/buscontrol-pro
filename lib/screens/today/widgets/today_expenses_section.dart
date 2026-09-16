@@ -6,7 +6,12 @@ import '../../../widgets/bus_card.dart';
 import '../../expenses/add_expense_screen.dart';
 
 class TodayExpensesSection extends StatefulWidget {
-  const TodayExpensesSection({super.key});
+  const TodayExpensesSection({
+    super.key,
+    this.hideWhenEmpty = false,
+  });
+
+  final bool hideWhenEmpty;
 
   @override
   State<TodayExpensesSection> createState() =>
@@ -221,6 +226,9 @@ class _TodayExpensesSectionState
     }
 
     if (_expenses.isEmpty) {
+      if (widget.hideWhenEmpty) {
+        return const SizedBox.shrink();
+      }
       return _buildEmptyCard();
     }
 
