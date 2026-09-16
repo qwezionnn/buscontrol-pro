@@ -1,0 +1,11 @@
+BusControl PRO — combined patch
+
+Includes:
+1) iOS widget morning/evening synchronization fix.
+2) Maintenance/ТО date-mode fix: iPhone-style date wheel instead of broken gray date picker.
+3) Date-based maintenance/document tracking presets: insurance, driver card, tachograph calibration, inspection.
+4) Maintenance cards show deadline/remaining days; mileage cards show last mileage, interval and next mileage.
+5) Date-based items can be renewed with a new deadline using the wheel picker.
+
+Extract over C:\Projects\bus_control_pro_final with file replacement, then run:
+flutter analyze

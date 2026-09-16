@@ -27,6 +27,7 @@ import WidgetKit
     guard url.scheme?.lowercased() == "buscontrol" else { return }
     let action = (url.host ?? url.path.replacingOccurrences(of: "/", with: "")).lowercased()
     guard action == "mileage" || action == "fuel" else { return }
+    UserDefaults.standard.set(action, forKey: "quick_action")
     UserDefaults(suiteName: widgetAppGroup)?.set(action, forKey: "quick_action")
   }
 
@@ -108,22 +109,36 @@ import WidgetKit
     )
 
     widgetChannel.setMethodCallHandler { call, result in
-      guard let defaults = UserDefaults(suiteName: Self.widgetAppGroup) else {
-        result(FlutterError(code: "app_group", message: "Shared App Group is unavailable", details: nil))
-        return
-      }
+      let defaults = UserDefaults(suiteName: Self.widgetAppGroup)
 
       switch call.method {
       case "consumePendingTripActions":
-        var response: [String: Bool] = [:]
-        if let value = defaults.object(forKey: "pending_morning_state") as? NSNumber {
+        var response: [String: Any] = [:]
+        let appDefaults = UserDefaults.standard
+
+        let morningToggleCount = appDefaults.integer(forKey: "widget_pending_morning_toggle_count")
+        let eveningToggleCount = appDefaults.integer(forKey: "widget_pending_evening_toggle_count")
+
+        if morningToggleCount > 0 {
+          response["morningToggleCount"] = morningToggleCount
+          appDefaults.removeObject(forKey: "widget_pending_morning_toggle_count")
+          // Avoid applying the same interaction twice when App Groups happen
+          // to work correctly in the current signing environment.
+          defaults?.removeObject(forKey: "pending_morning_state")
+        } else if let value = defaults?.object(forKey: "pending_morning_state") as? NSNumber {
           response["morning"] = value.boolValue
-          defaults.removeObject(forKey: "pending_morning_state")
+          defaults?.removeObject(forKey: "pending_morning_state")
         }
-        if let value = defaults.object(forKey: "pending_evening_state") as? NSNumber {
+
+        if eveningToggleCount > 0 {
+          response["eveningToggleCount"] = eveningToggleCount
+          appDefaults.removeObject(forKey: "widget_pending_evening_toggle_count")
+          defaults?.removeObject(forKey: "pending_evening_state")
+        } else if let value = defaults?.object(forKey: "pending_evening_state") as? NSNumber {
           response["evening"] = value.boolValue
-          defaults.removeObject(forKey: "pending_evening_state")
+          defaults?.removeObject(forKey: "pending_evening_state")
         }
+
         result(response)
 
       case "updateSnapshot":
@@ -134,17 +149,20 @@ import WidgetKit
           result(FlutterError(code: "bad_args", message: "Missing widget snapshot fields", details: nil))
           return
         }
-        defaults.set(date, forKey: "snapshot_date")
-        defaults.set(morningDone, forKey: "morning_done")
-        defaults.set(eveningDone, forKey: "evening_done")
+        defaults?.set(date, forKey: "snapshot_date")
+        defaults?.set(morningDone, forKey: "morning_done")
+        defaults?.set(eveningDone, forKey: "evening_done")
         if #available(iOS 14.0, *) {
           WidgetCenter.shared.reloadTimelines(ofKind: "BusControlHomeWidget")
         }
         result(nil)
 
       case "consumeQuickAction":
-        let action = defaults.string(forKey: "quick_action")
-        defaults.removeObject(forKey: "quick_action")
+        let appDefaults = UserDefaults.standard
+        let action = appDefaults.string(forKey: "quick_action")
+          ?? defaults?.string(forKey: "quick_action")
+        appDefaults.removeObject(forKey: "quick_action")
+        defaults?.removeObject(forKey: "quick_action")
         result(action)
 
       default:

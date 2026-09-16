@@ -8,8 +8,8 @@ import '../repositories/trip_repository.dart';
 /// Bridge between the iOS WidgetKit extension and the Flutter application.
 ///
 /// The widget cannot safely open the sqflite database directly because it runs
-/// in another process. It stores small pending actions in the shared App Group;
-/// the Flutter app applies them to the real database on the next launch/resume.
+/// in another process. Pending actions are bridged back to the host app and
+/// applied to the real database on the next launch/resume.
 class HomeWidgetService {
   HomeWidgetService._();
 
@@ -41,7 +41,14 @@ class HomeWidgetService {
 
     final morning = pending['morning'] as bool?;
     final evening = pending['evening'] as bool?;
-    if (morning == null && evening == null) {
+    final morningToggleCount =
+        (pending['morningToggleCount'] as num?)?.toInt() ?? 0;
+    final eveningToggleCount =
+        (pending['eveningToggleCount'] as num?)?.toInt() ?? 0;
+    if (morning == null &&
+        evening == null &&
+        morningToggleCount == 0 &&
+        eveningToggleCount == 0) {
       await updateTodaySnapshot();
       return false;
     }
@@ -64,15 +71,22 @@ class HomeWidgetService {
       final id = (row['id'] as num?)?.toInt();
       if (id == null) continue;
       final type = row['type']?.toString();
-      if (type == TripType.morning.name && morning != null) {
+      final completed = row['completed'] == 1;
+      if (type == TripType.morning.name &&
+          (morning != null || morningToggleCount > 0)) {
+        final target = morning ??
+            (morningToggleCount.isOdd ? !completed : completed);
         await TripRepository.instance.setCompleted(
           tripId: id,
-          completed: morning,
+          completed: target,
         );
-      } else if (type == TripType.evening.name && evening != null) {
+      } else if (type == TripType.evening.name &&
+          (evening != null || eveningToggleCount > 0)) {
+        final target = evening ??
+            (eveningToggleCount.isOdd ? !completed : completed);
         await TripRepository.instance.setCompleted(
           tripId: id,
-          completed: evening,
+          completed: target,
         );
       }
     }

@@ -9,6 +9,7 @@ import 'app/app.dart';
 import 'core/config/supabase_config.dart';
 import 'database/database_helper.dart';
 import 'services/notification_service.dart';
+import 'services/home_widget_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,6 +36,14 @@ Future<void> main() async {
   );
 
   await DatabaseHelper.instance.database;
+
+  // Apply Home Screen widget actions before building the first frame. This is
+  // especially important after a cold launch, when the widget may have toggled
+  // morning/evening while BusControl PRO was not open.
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+    await HomeWidgetService.instance.applyPendingTripActions();
+  }
+
   await NotificationService.instance.initialize();
 
   // Restore/register the nearest upcoming iOS Live Activities. Newly saved
