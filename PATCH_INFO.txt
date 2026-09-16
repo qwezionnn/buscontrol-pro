@@ -1,11 +1,9 @@
-BusControl PRO — Widget toggle idempotency fix
+BusControl PRO — SideStore/App Group build fix
 
-Fixes the issue where tapping Morning/Evening briefly checked the item and then immediately unchecked it in both the widget and app.
+This patch does NOT change widget tap behavior.
+It only changes .github/workflows/ios-release.yml so the unsigned Flutter build
+is ad-hoc signed with the existing Runner and Widget Extension entitlements
+before the IPA is packaged. This preserves the App Group capability for the
+SideStore re-signing pipeline and prints/validates both entitlements in CI logs.
 
-Cause: the interactive intent could be executed more than once; the old implementation treated each execution as a toggle.
-Fix: the widget now sends an explicit target state derived from the rendered state. Repeated executions write the same target value, so they cannot toggle back.
-
-Files:
-- ios/Shared/BusControlWidgetIntent.swift
-- ios/BusControlLiveActivity/BusControlLiveActivity.swift
-- ios/Runner/AppDelegate.swift
+Apply over C:\Projects\bus_control_pro_final and push.

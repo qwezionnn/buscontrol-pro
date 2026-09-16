@@ -62,6 +62,59 @@ jobs:
             --build-name "${{ steps.version.outputs.version_name }}" \
             --build-number "${{ steps.version.outputs.build_number }}"
 
+      - name: Preserve iOS entitlements for SideStore
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP="build/ios/iphoneos/Runner.app"
+          EXT="$APP/PlugIns/BusControlLiveActivity.appex"
+
+          echo "Embedding entitlements into unsigned build before IPA packaging..."
+
+          # flutter build --no-codesign leaves the final app unsigned.
+          # SideStore needs to be able to inspect the capabilities requested by
+          # both Runner and the WidgetKit extension when it re-signs the IPA.
+          # Ad-hoc signing here does not make the IPA installable by itself; it
+          # simply preserves the requested entitlements in the code signatures.
+
+          if [ -d "$APP/Frameworks" ]; then
+            find "$APP/Frameworks" -maxdepth 1 -type d -name "*.framework" -print0 | \
+              while IFS= read -r -d '' framework; do
+                codesign --force --sign - --timestamp=none "$framework"
+              done
+            find "$APP/Frameworks" -maxdepth 1 -type f -name "*.dylib" -print0 | \
+              while IFS= read -r -d '' dylib; do
+                codesign --force --sign - --timestamp=none "$dylib"
+              done
+          fi
+
+          if [ -d "$EXT" ]; then
+            if [ -d "$EXT/Frameworks" ]; then
+              find "$EXT/Frameworks" -maxdepth 1 -type d -name "*.framework" -print0 | \
+                while IFS= read -r -d '' framework; do
+                  codesign --force --sign - --timestamp=none "$framework"
+                done
+            fi
+
+            codesign --force --sign - --timestamp=none \
+              --entitlements ios/BusControlLiveActivity/BusControlLiveActivity.entitlements \
+              "$EXT"
+          fi
+
+          codesign --force --sign - --timestamp=none \
+            --entitlements ios/Runner/Runner.entitlements \
+            "$APP"
+
+          echo "Runner entitlements:"
+          codesign -d --entitlements :- "$APP" 2>&1 || true
+          echo "Widget extension entitlements:"
+          codesign -d --entitlements :- "$EXT" 2>&1 || true
+
+          echo "Verifying App Group entitlement is present in both targets..."
+          codesign -d --entitlements :- "$APP" 2>&1 | grep -q "com.apple.security.application-groups"
+          codesign -d --entitlements :- "$EXT" 2>&1 | grep -q "com.apple.security.application-groups"
+
       - name: Create IPA
         run: |
           mkdir Payload
@@ -156,6 +209,9 @@ jobs:
               apps.append(app)
 
           app["bundleIdentifier"] = bundle_id
+          # Declare the capability used by Runner + Widget Extension.
+          # SideStore/AltStore source format supports listing app entitlements.
+          app["entitlements"] = ["com.apple.security.application-groups"]
 
           versions = app.setdefault("versions", [])
 
