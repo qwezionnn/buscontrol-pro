@@ -3,11 +3,15 @@ import 'package:flutter/material.dart';
 import '../../../models/trip.dart';
 import '../../../repositories/trip_repository.dart';
 import '../../../services/home_widget_service.dart';
+import '../../../services/notification_service.dart';
+import '../../../widgets/time_wheel_picker.dart';
 import '../../../widgets/bus_card.dart';
 import '../../trips/add_extra_trip_screen.dart';
 
 class TodayTripsSection extends StatefulWidget {
-  const TodayTripsSection({super.key});
+  const TodayTripsSection({super.key, this.onChanged});
+
+  final VoidCallback? onChanged;
 
   @override
   State<TodayTripsSection> createState() => _TodayTripsSectionState();
@@ -18,12 +22,70 @@ class _TodayTripsSectionState extends State<TodayTripsSection> {
 
   List<Trip> _trips = [];
   bool _isLoading = true;
+  bool _endMileageReminderEnabled = false;
+  int _endMileageReminderHour = 18;
+  int _endMileageReminderMinute = 5;
+  bool _reminderLoading = true;
 
   @override
   void initState() {
     super.initState();
     _loadTrips();
+    _loadEndMileageReminder();
   }
+
+  Future<void> _loadEndMileageReminder() async {
+    final settings =
+        await NotificationService.instance.getEndMileageReminderSettings();
+    if (!mounted) return;
+    setState(() {
+      _endMileageReminderEnabled = settings.enabled;
+      _endMileageReminderHour = settings.hour;
+      _endMileageReminderMinute = settings.minute;
+      _reminderLoading = false;
+    });
+  }
+
+  Future<void> _setEndMileageReminderEnabled(bool enabled) async {
+    setState(() => _endMileageReminderEnabled = enabled);
+
+    if (enabled) {
+      await NotificationService.instance.requestPermissions();
+    }
+
+    await NotificationService.instance.saveEndMileageReminderSettings(
+      enabled: enabled,
+      hour: _endMileageReminderHour,
+      minute: _endMileageReminderMinute,
+    );
+  }
+
+  Future<void> _pickEndMileageReminderTime() async {
+    final picked = await showBusTimeWheelPicker(
+      context,
+      initialTime: TimeOfDay(
+        hour: _endMileageReminderHour,
+        minute: _endMileageReminderMinute,
+      ),
+      title: 'Напоминание о пробеге',
+    );
+    if (picked == null || !mounted) return;
+
+    setState(() {
+      _endMileageReminderHour = picked.hour;
+      _endMileageReminderMinute = picked.minute;
+    });
+
+    await NotificationService.instance.saveEndMileageReminderSettings(
+      enabled: _endMileageReminderEnabled,
+      hour: picked.hour,
+      minute: picked.minute,
+    );
+  }
+
+  String get _endMileageReminderTimeLabel =>
+      '${_endMileageReminderHour.toString().padLeft(2, '0')}:'
+      '${_endMileageReminderMinute.toString().padLeft(2, '0')}';
 
   Future<void> _loadTrips() async {
     if (mounted) {
@@ -82,6 +144,7 @@ class _TodayTripsSectionState extends State<TodayTripsSection> {
       await HomeWidgetService.instance.updateTodaySnapshot();
 
       await _loadTrips();
+      widget.onChanged?.call();
     } catch (error) {
       if (!mounted) {
         return;
@@ -109,6 +172,7 @@ class _TodayTripsSectionState extends State<TodayTripsSection> {
     }
 
     await _loadTrips();
+    widget.onChanged?.call();
 
     if (!mounted) {
       return;
@@ -145,8 +209,13 @@ class _TodayTripsSectionState extends State<TodayTripsSection> {
     if (ok == true) {
       final value = double.tryParse(price.text.trim().replaceAll(',', '.'));
       if (value != null && value >= 0) {
-        await _repository.editStandardTrip(tripId: trip.id!, price: value, note: note.text);
+        await _repository.editStandardTrip(
+          tripId: trip.id!,
+          price: value,
+          note: note.text,
+        );
         await _loadTrips();
+        widget.onChanged?.call();
       }
     }
     price.dispose(); note.dispose();
@@ -308,6 +377,51 @@ class _TodayTripsSectionState extends State<TodayTripsSection> {
             ),
             trailing: const Icon(Icons.add),
             onTap: _openAddExtraTrip,
+          ),
+
+          const Divider(height: 1),
+
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Row(
+              children: [
+                const Icon(Icons.route_outlined, size: 22),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Напоминание о конечном пробеге',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _endMileageReminderEnabled
+                            ? 'Только по будням'
+                            : 'Выключено • по выходным не приходит',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: _reminderLoading
+                      ? null
+                      : _pickEndMileageReminderTime,
+                  child: Text(
+                    _endMileageReminderTimeLabel,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                Switch.adaptive(
+                  value: _endMileageReminderEnabled,
+                  onChanged: _reminderLoading
+                      ? null
+                      : _setEndMileageReminderEnabled,
+                ),
+              ],
+            ),
           ),
         ],
       ),

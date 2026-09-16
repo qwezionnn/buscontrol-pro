@@ -7,7 +7,9 @@ import '../../fuel/add_fuel_screen.dart';
 import '../../fuel/home_fuel_settlement_screen.dart';
 
 class TodayFuelSection extends StatefulWidget {
-  const TodayFuelSection({super.key});
+  const TodayFuelSection({super.key, this.onChanged});
+
+  final VoidCallback? onChanged;
 
   @override
   State<TodayFuelSection> createState() => _TodayFuelSectionState();
@@ -76,6 +78,7 @@ class _TodayFuelSectionState extends State<TodayFuelSection> {
     }
 
     await _loadFuelLogs();
+    widget.onChanged?.call();
 
     if (!mounted) {
       return;
@@ -96,6 +99,7 @@ class _TodayFuelSectionState extends State<TodayFuelSection> {
     );
 
     if (wasSaved == true && mounted) {
+      widget.onChanged?.call();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Домашнее топливо списано с кошелька автобуса'),

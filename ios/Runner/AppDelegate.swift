@@ -26,7 +26,8 @@ import WidgetKit
   static func storeQuickAction(from url: URL) {
     guard url.scheme?.lowercased() == "buscontrol" else { return }
     let action = (url.host ?? url.path.replacingOccurrences(of: "/", with: "")).lowercased()
-    guard action == "mileage" || action == "fuel" else { return }
+    let supportedActions: Set<String> = ["trips", "mileage", "order", "fuel", "calendar"]
+    guard supportedActions.contains(action) else { return }
     UserDefaults.standard.set(action, forKey: "quick_action")
     UserDefaults(suiteName: widgetAppGroup)?.set(action, forKey: "quick_action")
   }

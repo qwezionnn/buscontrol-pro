@@ -26,6 +26,15 @@ class MonthReport {
   double get income => tripIncome + orderIncome;
   double get costs => fuelCost + expenseCost;
   double get profit => income - costs;
+
+  /// Approximate fuel usage for the selected month. It is based on the liters
+  /// added during the month and the recorded mileage for the same period, so it
+  /// should be treated as a practical dashboard estimate rather than a
+  /// full-tank-to-full-tank measurement.
+  double? get approximateFuelPer100Km {
+    if (distance <= 0 || fuelLiters <= 0) return null;
+    return fuelLiters / distance * 100;
+  }
 }
 
 class DayEvents {

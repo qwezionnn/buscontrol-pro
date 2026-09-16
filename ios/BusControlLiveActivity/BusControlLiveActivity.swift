@@ -81,61 +81,25 @@ struct BusControlOrderLiveActivity: Widget {
 
 private struct BusControlWidgetEntry: TimelineEntry {
     let date: Date
-    let morningDone: Bool
-    let eveningDone: Bool
 }
 
 private struct BusControlWidgetProvider: TimelineProvider {
     func placeholder(in context: Context) -> BusControlWidgetEntry {
-        BusControlWidgetEntry(date: Date(), morningDone: true, eveningDone: false)
+        BusControlWidgetEntry(date: Date())
     }
 
     func getSnapshot(in context: Context, completion: @escaping (BusControlWidgetEntry) -> Void) {
-        completion(entry())
+        completion(BusControlWidgetEntry(date: Date()))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<BusControlWidgetEntry>) -> Void) {
-        let current = entry()
+        let current = BusControlWidgetEntry(date: Date())
         let tomorrow = Calendar.current.date(
             byAdding: .day,
             value: 1,
             to: Calendar.current.startOfDay(for: Date())
         ) ?? Date().addingTimeInterval(3600)
         completion(Timeline(entries: [current], policy: .after(tomorrow.addingTimeInterval(30))))
-    }
-
-    private func entry() -> BusControlWidgetEntry {
-        let defaults = UserDefaults(suiteName: busControlAppGroup)
-        let today = Self.dateKey(Date())
-        let snapshotDate = defaults?.string(forKey: "snapshot_date")
-        let isCurrent = snapshotDate == today
-
-        // Prefer an in-flight widget request over the last committed snapshot.
-        // Flutter clears these pending values only after SQLite and the shared
-        // snapshot have been updated to the same target state.
-        let pendingMorning = defaults?.object(forKey: "pending_morning_state") as? NSNumber
-        let pendingEvening = defaults?.object(forKey: "pending_evening_state") as? NSNumber
-
-        let morningDone = isCurrent
-            ? (pendingMorning?.boolValue ?? (defaults?.bool(forKey: "morning_done") ?? false))
-            : false
-        let eveningDone = isCurrent
-            ? (pendingEvening?.boolValue ?? (defaults?.bool(forKey: "evening_done") ?? false))
-            : false
-
-        return BusControlWidgetEntry(
-            date: Date(),
-            morningDone: morningDone,
-            eveningDone: eveningDone
-        )
-    }
-
-    static func dateKey(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
     }
 }
 
@@ -147,7 +111,7 @@ struct BusControlHomeWidget: Widget {
             BusControlHomeWidgetView(entry: entry)
         }
         .configurationDisplayName("BusControl PRO")
-        .description("Утро, вечер, пробег и заправка прямо с домашнего экрана.")
+        .description("Быстрый переход к рейсам, пробегу, заказам, заправке и календарю.")
         .supportedFamilies([.systemMedium])
     }
 }
@@ -156,7 +120,7 @@ private struct BusControlHomeWidgetView: View {
     let entry: BusControlWidgetEntry
 
     var body: some View {
-        VStack(spacing: 11) {
+        VStack(spacing: 8) {
             HStack(spacing: 8) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -167,139 +131,114 @@ private struct BusControlHomeWidgetView: View {
                 }
                 .frame(width: 31, height: 31)
 
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text("BusControl PRO")
                         .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
-                    Text(Self.dayLabel(entry.date))
-                        .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.7))
+
+                    HStack(spacing: 6) {
+                        Text(Self.dayLabel(entry.date))
+                            .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.72))
+                            .lineLimit(1)
+
+                        Link(destination: URL(string: "buscontrol://calendar")!) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 22, height: 20)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                        .fill(.white.opacity(0.14))
+                                )
+                        }
+                        .accessibilityLabel("Открыть календарь")
+                    }
                 }
-                Spacer()
+
+                Spacer(minLength: 0)
             }
 
-            HStack(spacing: 9) {
-                tripControl(
-                    title: "Утро",
-                    symbol: "sun.max.fill",
-                    done: entry.morningDone,
-                    kind: "morning"
-                )
-                tripControl(
-                    title: "Вечер",
-                    symbol: "moon.stars.fill",
-                    done: entry.eveningDone,
-                    kind: "evening"
-                )
-            }
+            HStack(spacing: 8) {
+                Link(destination: URL(string: "buscontrol://trips")!) {
+                    actionButton(
+                        title: "Утро / вечер",
+                        symbol: "sun.horizon.fill"
+                    )
+                }
 
-            HStack(spacing: 9) {
                 Link(destination: URL(string: "buscontrol://mileage")!) {
-                    quickButton(title: "Конечный пробег", symbol: "road.lanes")
+                    actionButton(
+                        title: "Конечный пробег",
+                        symbol: "road.lanes"
+                    )
                 }
+            }
+
+            HStack(spacing: 8) {
+                Link(destination: URL(string: "buscontrol://order")!) {
+                    actionButton(
+                        title: "Новый заказ",
+                        symbol: "shippingbox.fill"
+                    )
+                }
+
                 Link(destination: URL(string: "buscontrol://fuel")!) {
-                    quickButton(title: "Заправка", symbol: "fuelpump.fill")
+                    actionButton(
+                        title: "Заправка",
+                        symbol: "fuelpump.fill"
+                    )
                 }
             }
         }
-        .padding(14)
+        .padding(11)
         .busControlWidgetBackground()
     }
 
-    @ViewBuilder
-    private func tripControl(title: String, symbol: String, done: Bool, kind: String) -> some View {
-        if #available(iOS 17.0, *) {
-            // Use WidgetKit's intent-backed Toggle instead of a Button.
-            // Toggle updates its visual state optimistically as soon as the
-            // user taps it, while ToggleTripIntent keeps the app/database sync.
-            Toggle(isOn: done, intent: ToggleTripIntent(kind: kind, currentState: done)) {
-                HStack(spacing: 8) {
-                    Image(systemName: symbol)
-                        .font(.system(size: 14, weight: .semibold))
-                    Text(title)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    Spacer(minLength: 2)
-                }
-            }
-            .toggleStyle(BusControlTripToggleStyle())
-        } else {
-            tripButton(title: title, symbol: symbol, done: done)
-        }
-    }
-
-    private func tripButton(title: String, symbol: String, done: Bool) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: symbol)
-                .font(.system(size: 14, weight: .semibold))
-            Text(title)
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
-            Spacer(minLength: 2)
-            Image(systemName: done ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 17, weight: .semibold))
-        }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 11)
-        .frame(maxWidth: .infinity, minHeight: 42)
-        .background(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .fill(done ? .white.opacity(0.20) : .white.opacity(0.10))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .stroke(.white.opacity(done ? 0.24 : 0.10), lineWidth: 0.8)
-        )
-    }
-
-    private func quickButton(title: String, symbol: String) -> some View {
+    private func actionButton(title: String, symbol: String) -> some View {
         HStack(spacing: 7) {
             Image(systemName: symbol)
                 .font(.system(size: 13, weight: .semibold))
+                .frame(width: 18)
+
             Text(title)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
                 .lineLimit(1)
-            Spacer(minLength: 0)
+                .minimumScaleFactor(0.82)
+
+            Spacer(minLength: 1)
+
             Image(systemName: "chevron.right")
-                .font(.system(size: 10, weight: .bold))
-                .opacity(0.7)
+                .font(.system(size: 9, weight: .bold))
+                .opacity(0.62)
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 10)
-        .frame(maxWidth: .infinity, minHeight: 36)
+        .frame(maxWidth: .infinity, minHeight: 39)
         .background(
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .fill(.black.opacity(0.18))
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.white.opacity(0.11))
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(.white.opacity(0.10), lineWidth: 0.8)
+        )
+        .contentShape(Rectangle())
     }
 
     private static func dayLabel(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ru_RU")
-        formatter.dateFormat = "d MMMM, EEEE"
-        return formatter.string(from: date).capitalized
-    }
-}
+        let weekday = DateFormatter()
+        weekday.locale = Locale(identifier: "ru_RU")
+        weekday.dateFormat = "EEE"
 
-@available(iOS 17.0, *)
-private struct BusControlTripToggleStyle: ToggleStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 8) {
-            configuration.label
-            Image(systemName: configuration.isOn ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 17, weight: .semibold))
-                .contentTransition(.symbolEffect(.replace))
-        }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 11)
-        .frame(maxWidth: .infinity, minHeight: 42)
-        .background(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .fill(configuration.isOn ? .white.opacity(0.20) : .white.opacity(0.10))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .stroke(.white.opacity(configuration.isOn ? 0.24 : 0.10), lineWidth: 0.8)
-        )
-        .contentShape(Rectangle())
+        let datePart = DateFormatter()
+        datePart.locale = Locale(identifier: "ru_RU")
+        datePart.dateFormat = "d MMMM"
+
+        let rawWeekday = weekday.string(from: date)
+            .replacingOccurrences(of: ".", with: "")
+        let prettyWeekday = rawWeekday.prefix(1).uppercased() + rawWeekday.dropFirst()
+        return "Сегодня • \(prettyWeekday), \(datePart.string(from: date))"
     }
 }
 

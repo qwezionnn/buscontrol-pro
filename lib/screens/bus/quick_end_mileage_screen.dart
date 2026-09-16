@@ -4,7 +4,15 @@ import '../../models/daily_log.dart';
 import '../../repositories/daily_log_repository.dart';
 
 class QuickEndMileageScreen extends StatefulWidget {
-  const QuickEndMileageScreen({super.key});
+  const QuickEndMileageScreen({
+    super.key,
+    this.initialDate,
+  });
+
+  /// When omitted, the quick form works with today. Supplying a date is useful
+  /// for the "missed end mileage" banner so a forgotten previous day can be
+  /// fixed without opening the full mileage history.
+  final DateTime? initialDate;
 
   @override
   State<QuickEndMileageScreen> createState() => _QuickEndMileageScreenState();
@@ -18,9 +26,16 @@ class _QuickEndMileageScreenState extends State<QuickEndMileageScreen> {
   bool _loading = true;
   bool _saving = false;
 
-  DateTime get _today {
+  DateTime get _date {
+    final value = widget.initialDate ?? DateTime.now();
+    return DateTime(value.year, value.month, value.day);
+  }
+
+  bool get _isToday {
     final now = DateTime.now();
-    return DateTime(now.year, now.month, now.day);
+    return _date.year == now.year &&
+        _date.month == now.month &&
+        _date.day == now.day;
   }
 
   @override
@@ -37,7 +52,7 @@ class _QuickEndMileageScreenState extends State<QuickEndMileageScreen> {
 
   Future<void> _load() async {
     try {
-      final log = await _repository.getLogForDate(_today);
+      final log = await _repository.getLogForDate(_date);
       if (!mounted) return;
       _controller.text = log.endMileage?.toString() ?? '';
       setState(() {
@@ -60,7 +75,7 @@ class _QuickEndMileageScreenState extends State<QuickEndMileageScreen> {
 
     setState(() => _saving = true);
     try {
-      await _repository.completeDay(date: _today, endMileage: value);
+      await _repository.completeDay(date: _date, endMileage: value);
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (error) {
@@ -73,6 +88,12 @@ class _QuickEndMileageScreenState extends State<QuickEndMileageScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  String _formatDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$day.$month.${date.year}';
   }
 
   void _message(String text) {
@@ -90,7 +111,7 @@ class _QuickEndMileageScreenState extends State<QuickEndMileageScreen> {
                 padding: const EdgeInsets.all(20),
                 children: [
                   Text(
-                    'Сегодня',
+                    _isToday ? 'Сегодня' : _formatDate(_date),
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),

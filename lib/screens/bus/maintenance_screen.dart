@@ -193,6 +193,19 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Icon(Icons.notifications_active_outlined, size: 17),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Напомним за 30, 7 и 1 день до срока',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                     const SizedBox(height: 8),
                     TextField(
@@ -599,6 +612,11 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w600,
                                 ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                'Уведомления: за 30, 7 и 1 день',
+                                style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ],
                             const SizedBox(height: 6),

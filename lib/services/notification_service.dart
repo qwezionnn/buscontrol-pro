@@ -16,6 +16,12 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
   bool _ready = false;
+  String? _pendingNavigationAction;
+
+  static const String _endMileageEnabledKey = 'end_mileage_reminder_enabled';
+  static const String _endMileageHourKey = 'end_mileage_reminder_hour';
+  static const String _endMileageMinuteKey = 'end_mileage_reminder_minute';
+
   static const MethodChannel _liveChannel = MethodChannel('buscontrol/live_activity');
 
   Future<void> initialize() async {
@@ -36,8 +42,156 @@ class NotificationService {
 
     await _plugin.initialize(
       const InitializationSettings(iOS: ios, android: android),
+      onDidReceiveNotificationResponse: _handleNotificationResponse,
     );
+
+    final launchDetails = await _plugin.getNotificationAppLaunchDetails();
+    if ((launchDetails?.didNotificationLaunchApp ?? false) &&
+        launchDetails?.notificationResponse != null) {
+      _handleNotificationResponse(launchDetails!.notificationResponse!);
+    }
+
     _ready = true;
+  }
+
+
+  void _handleNotificationResponse(NotificationResponse response) {
+    final payload = response.payload ?? '';
+    if (payload == 'quick_end_mileage') {
+      _pendingNavigationAction = 'mileage';
+      return;
+    }
+    if (payload.startsWith('maintenance:')) {
+      _pendingNavigationAction = 'maintenance';
+    }
+  }
+
+  /// Returns a one-shot navigation action created by tapping a notification.
+  String? consumeNavigationAction() {
+    final action = _pendingNavigationAction;
+    _pendingNavigationAction = null;
+    return action;
+  }
+
+  Future<({bool enabled, int hour, int minute})>
+      getEndMileageReminderSettings() async {
+    final enabled =
+        (await DatabaseHelper.instance.getSetting(_endMileageEnabledKey)) == '1';
+    final hour = int.tryParse(
+          await DatabaseHelper.instance.getSetting(_endMileageHourKey) ?? '',
+        ) ??
+        18;
+    final minute = int.tryParse(
+          await DatabaseHelper.instance.getSetting(_endMileageMinuteKey) ?? '',
+        ) ??
+        5;
+    return (
+      enabled: enabled,
+      hour: hour.clamp(0, 23).toInt(),
+      minute: minute.clamp(0, 59).toInt(),
+    );
+  }
+
+  Future<void> saveEndMileageReminderSettings({
+    required bool enabled,
+    required int hour,
+    required int minute,
+  }) async {
+    await DatabaseHelper.instance.setSettings({
+      _endMileageEnabledKey: enabled ? '1' : '0',
+      _endMileageHourKey: hour.clamp(0, 23).toString(),
+      _endMileageMinuteKey: minute.clamp(0, 59).toString(),
+    });
+    await refreshEndMileageReminderSchedule();
+  }
+
+  String _databaseDate(DateTime date) {
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
+  }
+
+  int _endMileageReminderId(DateTime date) {
+    // Stable positive id below Android's signed 32-bit limit.
+    return 920000000 +
+        (date.year % 100) * 10000 +
+        date.month * 100 +
+        date.day;
+  }
+
+  bool _isWeekend(DateTime date) =>
+      date.weekday == DateTime.saturday || date.weekday == DateTime.sunday;
+
+  Future<void> cancelEndMileageReminderForDate(DateTime date) async {
+    if (kIsWeb) return;
+    await initialize();
+    final normalized = DateTime(date.year, date.month, date.day);
+    await _plugin.cancel(_endMileageReminderId(normalized));
+  }
+
+  /// Rebuilds a rolling set of weekday reminders. Weekends are intentionally
+  /// skipped. Today's reminder is skipped when the end mileage is already saved.
+  Future<void> refreshEndMileageReminderSchedule() async {
+    if (kIsWeb) return;
+    await initialize();
+
+    final settings = await getEndMileageReminderSettings();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    // Remove the previous rolling schedule first so changing the time doesn't
+    // leave old notifications behind.
+    for (var offset = -1; offset <= 16; offset++) {
+      final date = today.add(Duration(days: offset));
+      await _plugin.cancel(_endMileageReminderId(date));
+    }
+
+    if (!settings.enabled) return;
+
+    // Keep two weeks scheduled to stay well below iOS' pending-notification limit.
+    // Each app launch refreshes this rolling window.
+    for (var offset = 0; offset <= 14; offset++) {
+      final date = today.add(Duration(days: offset));
+      if (_isWeekend(date)) continue;
+
+      final when = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        settings.hour,
+        settings.minute,
+      );
+      if (!when.isAfter(now)) continue;
+
+      final existing = await DatabaseHelper.instance.getDailyLog(
+        _databaseDate(date),
+      );
+      if (existing?['end_mileage'] != null) continue;
+
+      await _plugin.zonedSchedule(
+        _endMileageReminderId(date),
+        '🛣️ Конечный пробег',
+        'Не забудь внести конечный пробег за сегодня.',
+        tz.TZDateTime.from(when, tz.local),
+        const NotificationDetails(
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+            interruptionLevel: InterruptionLevel.timeSensitive,
+          ),
+          android: AndroidNotificationDetails(
+            'end_mileage',
+            'Конечный пробег',
+            channelDescription: 'Напоминание внести конечный пробег автобуса',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+        ),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        payload: 'quick_end_mileage',
+      );
+    }
   }
 
   Future<bool> requestPermissions() async {
@@ -358,6 +512,98 @@ class NotificationService {
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       payload: 'calendar_note:$id',
     );
+  }
+
+  int _maintenanceReminderId(int itemId, int slot) {
+    return 780000000 + (itemId % 1000000) * 10 + slot;
+  }
+
+  Future<void> cancelMaintenanceReminders(int itemId) async {
+    if (kIsWeb) return;
+    await initialize();
+    for (var slot = 1; slot <= 3; slot++) {
+      await _plugin.cancel(_maintenanceReminderId(itemId, slot));
+    }
+  }
+
+  /// Schedules document / date-based maintenance warnings for 30, 7 and 1 day
+  /// before the due date. Mileage-based maintenance is surfaced in-app because
+  /// its trigger depends on the odometer rather than wall-clock time.
+  Future<void> scheduleMaintenanceReminders({
+    required int itemId,
+    required String title,
+    required DateTime dueDate,
+  }) async {
+    if (kIsWeb) return;
+    await initialize();
+    await cancelMaintenanceReminders(itemId);
+
+    final due = DateTime(
+      dueDate.year,
+      dueDate.month,
+      dueDate.day,
+      10,
+    );
+    const leads = <int>[30, 7, 1];
+    final now = DateTime.now();
+
+    for (var index = 0; index < leads.length; index++) {
+      final days = leads[index];
+      final when = due.subtract(Duration(days: days));
+      if (!when.isAfter(now)) continue;
+
+      final dateLabel =
+          '${due.day.toString().padLeft(2, '0')}.'
+          '${due.month.toString().padLeft(2, '0')}.${due.year}';
+      await _plugin.zonedSchedule(
+        _maintenanceReminderId(itemId, index + 1),
+        '🔧 ТО / документы',
+        '$title — срок $dateLabel. Осталось $days дн.',
+        tz.TZDateTime.from(when, tz.local),
+        const NotificationDetails(
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+            interruptionLevel: InterruptionLevel.timeSensitive,
+          ),
+          android: AndroidNotificationDetails(
+            'maintenance_dates',
+            'ТО и документы',
+            channelDescription: 'Сроки страховки, карт, тахографа и ТО',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+        ),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        payload: 'maintenance:$itemId',
+      );
+    }
+  }
+
+  /// Restores all date-based maintenance reminders after an app update,
+  /// restart or database restore.
+  Future<void> refreshMaintenanceReminders() async {
+    if (kIsWeb) return;
+    await initialize();
+    final db = await DatabaseHelper.instance.database;
+    final vehicleId = await DatabaseHelper.instance.getActiveVehicleId();
+    final rows = await db.query(
+      'maintenance_items',
+      where: 'vehicle_id = ? AND kind = ?',
+      whereArgs: [vehicleId, 'date'],
+    );
+
+    for (final row in rows) {
+      final id = (row['id'] as num?)?.toInt();
+      final nextValue = (row['next_value'] as num?)?.toInt();
+      if (id == null || nextValue == null || nextValue <= 0) continue;
+      await scheduleMaintenanceReminders(
+        itemId: id,
+        title: row['title']?.toString() ?? 'ТО / документ',
+        dueDate: DateTime.fromMillisecondsSinceEpoch(nextValue),
+      );
+    }
   }
 
   Future<void> scheduleService({

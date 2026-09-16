@@ -1,5 +1,6 @@
 import '../database/database_helper.dart';
 import '../models/daily_log.dart';
+import '../services/notification_service.dart';
 import 'settings_repository.dart';
 
 class DailyLogRepository {
@@ -141,6 +142,8 @@ class DailyLogRepository {
       );
     }
 
+    await NotificationService.instance.cancelEndMileageReminderForDate(date);
+
     final savedRow = await _databaseHelper.getDailyLog(
       databaseDate(date),
     );
@@ -185,6 +188,7 @@ class DailyLogRepository {
     }
 
     await _settingsRepository.notifyMileageChanged();
+    await NotificationService.instance.refreshEndMileageReminderSchedule();
   }
 
   Future<bool> isDayCompleted(DateTime date) async {

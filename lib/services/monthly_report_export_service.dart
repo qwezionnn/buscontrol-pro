@@ -432,6 +432,13 @@ class MonthlyReportExportService {
       ],
       if (options.summaryExpenses) ['Другие расходы', _money(report.expenseCost)],
       if (options.summaryMileage) ['Пробег', '${report.distance} км'],
+      if (options.summaryFuel &&
+          options.summaryMileage &&
+          report.approximateFuelPer100Km != null)
+        [
+          'Средний расход топлива',
+          '≈ ${report.approximateFuelPer100Km!.toStringAsFixed(1)} л/100 км',
+        ],
     ];
 
     return pw.Container(
@@ -562,6 +569,15 @@ class MonthlyReportExportService {
       if (options.summaryFuel) summary.appendRow([TextCellValue('Топливо, л'), DoubleCellValue(data.report.fuelLiters), DoubleCellValue(data.report.fuelCost)]);
       if (options.summaryExpenses) summary.appendRow([TextCellValue('Другие расходы'), TextCellValue(''), DoubleCellValue(data.report.expenseCost)]);
       if (options.summaryMileage) summary.appendRow([TextCellValue('Пробег, км'), IntCellValue(data.report.distance), TextCellValue('')]);
+      if (options.summaryFuel &&
+          options.summaryMileage &&
+          data.report.approximateFuelPer100Km != null) {
+        summary.appendRow([
+          TextCellValue('Средний расход топлива, л/100 км'),
+          DoubleCellValue(data.report.approximateFuelPer100Km!),
+          TextCellValue('≈'),
+        ]);
+      }
       excel.setDefaultSheet('Сводка');
     }
 

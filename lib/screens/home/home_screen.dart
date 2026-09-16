@@ -8,8 +8,11 @@ import '../../repositories/settings_repository.dart';
 import '../../repositories/vehicle_repository.dart';
 import '../../services/backup_service.dart';
 import '../../services/home_widget_service.dart';
+import '../../services/notification_service.dart';
 import '../bus/quick_end_mileage_screen.dart';
+import '../bus/maintenance_screen.dart';
 import '../fuel/add_fuel_screen.dart';
+import '../orders/add_order_screen.dart';
 import '../bus/bus_screen.dart';
 import '../calendar/calendar_screen.dart';
 import '../finance/finance_screen.dart';
@@ -76,14 +79,39 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       setState(() => _refreshVersion++);
     }
 
-    final quickAction = await _homeWidgetService.consumeQuickAction();
+    final widgetAction = await _homeWidgetService.consumeQuickAction();
+    final quickAction =
+        widgetAction ?? NotificationService.instance.consumeNavigationAction();
     if (!mounted || quickAction == null) return;
+
+    if (quickAction == 'trips') {
+      setState(() {
+        _currentIndex = 0;
+        _refreshVersion++;
+      });
+      return;
+    }
+
+    if (quickAction == 'calendar') {
+      // Calendar is the second tab for the bus profile.
+      if (!(_activeVehicle?.isPersonal ?? false)) {
+        setState(() {
+          _currentIndex = 1;
+          _refreshVersion++;
+        });
+      }
+      return;
+    }
 
     Widget? page;
     if (quickAction == 'mileage') {
       page = const QuickEndMileageScreen();
+    } else if (quickAction == 'order') {
+      page = const AddOrderScreen();
     } else if (quickAction == 'fuel') {
       page = const AddFuelScreen();
+    } else if (quickAction == 'maintenance') {
+      page = const MaintenanceScreen();
     }
     if (page == null) return;
 

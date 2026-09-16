@@ -1,11 +1,11 @@
 import '../database/database_helper.dart';
 import '../models/maintenance_item.dart';
+import '../services/notification_service.dart';
 
 class MaintenanceRepository {
   MaintenanceRepository._();
 
-  static final MaintenanceRepository instance =
-      MaintenanceRepository._();
+  static final MaintenanceRepository instance = MaintenanceRepository._();
 
   final DatabaseHelper _database = DatabaseHelper.instance;
 
@@ -34,13 +34,20 @@ class MaintenanceRepository {
     required String title,
     required DateTime date,
     String? note,
-  }) {
-    return _database.addMaintenanceItem(
+  }) async {
+    final id = await _database.addMaintenanceItem(
       title: title,
       kind: 'date',
       nextValue: date.millisecondsSinceEpoch,
       note: note,
     );
+    await NotificationService.instance.requestPermissions();
+    await NotificationService.instance.scheduleMaintenanceReminders(
+      itemId: id,
+      title: title,
+      dueDate: date,
+    );
+    return id;
   }
 
   Future<void> completeMileageItem(
@@ -74,7 +81,15 @@ class MaintenanceRepository {
       nextValue: nextDate.millisecondsSinceEpoch,
       note: item.note,
     );
+    await NotificationService.instance.scheduleMaintenanceReminders(
+      itemId: id,
+      title: item.title,
+      dueDate: nextDate,
+    );
   }
 
-  Future<void> delete(int id) => _database.deleteMaintenanceItem(id);
+  Future<void> delete(int id) async {
+    await NotificationService.instance.cancelMaintenanceReminders(id);
+    await _database.deleteMaintenanceItem(id);
+  }
 }

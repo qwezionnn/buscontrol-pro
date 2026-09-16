@@ -45,6 +45,8 @@ Future<void> main() async {
   }
 
   await NotificationService.instance.initialize();
+  await NotificationService.instance.refreshEndMileageReminderSchedule();
+  await NotificationService.instance.refreshMaintenanceReminders();
 
   // Restore/register the nearest upcoming iOS Live Activities. Newly saved
   // orders and calendar notes are scheduled immediately when they are saved.

@@ -5,7 +5,9 @@ import '../../../repositories/daily_log_repository.dart';
 import '../../../widgets/bus_card.dart';
 
 class TodayFinishDaySection extends StatefulWidget {
-  const TodayFinishDaySection({super.key});
+  const TodayFinishDaySection({super.key, this.onChanged});
+
+  final VoidCallback? onChanged;
 
   @override
   State<TodayFinishDaySection> createState() =>
@@ -110,6 +112,7 @@ class _TodayFinishDaySectionState
       setState(() {
         _dailyLog = savedLog;
       });
+      widget.onChanged?.call();
 
       _showMessage('Конечный пробег сохранён.');
     } catch (error) {
