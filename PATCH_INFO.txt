@@ -1,8 +1,10 @@
-BusControl PRO - Widget visual toggle fix
+BusControl PRO — widget + Russian dates hotfix
 
-Changes:
-- Morning/evening controls use SwiftUI Toggle(isOn:intent:) instead of Button(intent:).
-- The checkmark updates optimistically immediately when tapped.
-- Existing ToggleTripIntent and app/database synchronization remain unchanged.
+1. Widget morning/evening checkmark no longer forces an immediate stale timeline reload.
+2. App locale is fixed to ru_RU with Material/Cupertino/Widgets localization delegates.
+3. Cupertino date wheels (including maintenance) show Russian month names.
+4. Maintenance "По сроку" date wheel is more compact and the comment field sits higher.
 
-Copy this patch over C:\Projects\bus_control_pro_final with replacement.
+After unpacking run:
+  flutter pub get
+  flutter analyze

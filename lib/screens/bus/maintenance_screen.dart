@@ -163,10 +163,16 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                       ),
                       const SizedBox(height: 6),
                       SizedBox(
-                        height: 170,
+                        height: 132,
                         child: CupertinoTheme(
                           data: CupertinoThemeData(
                             brightness: Theme.of(context).brightness,
+                            textTheme: CupertinoTextThemeData(
+                              dateTimePickerTextStyle: TextStyle(
+                                fontSize: 18,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
                           ),
                           child: CupertinoDatePicker(
                             mode: CupertinoDatePickerMode.date,
@@ -188,7 +194,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     TextField(
                       controller: noteController,
                       maxLines: 2,
@@ -310,10 +316,16 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                       ),
                     ),
                     SizedBox(
-                      height: 210,
+                      height: 165,
                       child: CupertinoTheme(
                         data: CupertinoThemeData(
                           brightness: Theme.of(context).brightness,
+                          textTheme: CupertinoTextThemeData(
+                            dateTimePickerTextStyle: TextStyle(
+                              fontSize: 18,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
                         ),
                         child: CupertinoDatePicker(
                           mode: CupertinoDatePickerMode.date,

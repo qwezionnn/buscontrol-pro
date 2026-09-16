@@ -51,10 +51,14 @@ struct ToggleTripIntent: AppIntent {
         // when the intent is executed in the BusControl process on iOS 26.
         sharedDefaults?.set(nextValue, forKey: stateKey)
         sharedDefaults?.set(nextValue, forKey: pendingKey)
+        // Flush the shared snapshot before the interaction finishes.
+        // Do not force an immediate WidgetKit timeline reload here: the SwiftUI
+        // Toggle already updates optimistically, while an immediate reload can
+        // redraw an older timeline entry and make the checkmark jump back.
+        sharedDefaults?.synchronize()
 
         appDefaults.set(appDefaults.integer(forKey: counterKey) + 1, forKey: counterKey)
-
-        WidgetCenter.shared.reloadTimelines(ofKind: "BusControlHomeWidget")
+        appDefaults.synchronize()
 
         return .result()
     }
