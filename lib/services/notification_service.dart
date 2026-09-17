@@ -234,11 +234,13 @@ class NotificationService {
 
   Future<void> _scheduleLiveActivity({
     required int activityId,
+    required String kind,
     required String title,
     required String time,
     required String note,
     required DateTime eventAt,
     required int leadMinutes,
+    bool replaceExisting = true,
   }) async {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
     if (!eventAt.isAfter(DateTime.now())) return;
@@ -251,21 +253,38 @@ class NotificationService {
       await _liveChannel.invokeMethod(
         startAt.isAfter(now) ? 'schedule' : 'start',
         {
+          // Keep orderId for backwards compatibility with older native builds,
+          // while eventId is the generic identifier used by the new bridge.
+          'eventId': activityId,
           'orderId': activityId,
+          'kind': kind,
           'title': title,
           'time': time,
           'note': note,
           'orderTimestampMs': eventAt.millisecondsSinceEpoch,
           'startTimestampMs': startAt.millisecondsSinceEpoch,
+          'replaceExisting': replaceExisting,
         },
       );
-    } on PlatformException {
-      // iOS < 26 can't schedule a future Live Activity locally.
-      // The ordinary local notification remains as a fallback there.
+      debugPrint(
+        'Live Activity registered: kind=$kind id=$activityId '
+        'start=$startAt event=$eventAt',
+      );
+    } on PlatformException catch (error) {
+      // Keep the ordinary local notification as a fallback, but don't hide the
+      // reason anymore. This makes GitHub/Xcode/device logs useful if iOS
+      // rejects a pending Live Activity because of permissions or system limits.
+      debugPrint(
+        'Live Activity registration failed: kind=$kind id=$activityId '
+        'code=${error.code} message=${error.message}',
+      );
     }
   }
 
-  Future<void> startLiveActivityIfEligible(Order order) async {
+  Future<void> startLiveActivityIfEligible(
+    Order order, {
+    bool replaceExisting = true,
+  }) async {
     if (kIsWeb ||
         defaultTargetPlatform != TargetPlatform.iOS ||
         order.id == null ||
@@ -277,14 +296,18 @@ class NotificationService {
 
     await _scheduleLiveActivity(
       activityId: order.id!,
+      kind: 'order',
       title: order.title,
       time: order.time,
       note: order.note ?? '',
       eventAt: at,
       leadMinutes: order.liveActivityMinutes,
+      replaceExisting: replaceExisting,
     );
   }
 
+  /// Recovery helper for orders created before the current build. Newly saved
+  /// orders are registered immediately by scheduleOrder().
   Future<void> startNearestLiveActivityIfEligible() async {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
     final db = await DatabaseHelper.instance.database;
@@ -297,28 +320,27 @@ class NotificationService {
     );
 
     final now = DateTime.now();
-    Order? nearest;
-    DateTime? nearestAt;
     for (final row in rows) {
       final order = Order.fromMap(row);
       final at = _date(order);
       if (at == null || !at.isAfter(now)) continue;
-      if (nearestAt == null || at.isBefore(nearestAt)) {
-        nearest = order;
-        nearestAt = at;
-      }
-    }
-    if (nearest != null) {
-      await startLiveActivityIfEligible(nearest);
+      await startLiveActivityIfEligible(order, replaceExisting: false);
+      break;
     }
   }
 
-  Future<void> endLiveActivity(int orderId) async {
+  Future<void> endLiveActivity(int eventId) async {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
     try {
-      await _liveChannel.invokeMethod('end', {'orderId': orderId});
-    } on PlatformException {
-      // Ignore unsupported/disabled Live Activities.
+      await _liveChannel.invokeMethod('end', {
+        'eventId': eventId,
+        'orderId': eventId,
+      });
+    } on PlatformException catch (error) {
+      debugPrint(
+        'Live Activity end failed: id=$eventId '
+        'code=${error.code} message=${error.message}',
+      );
     }
   }
 
@@ -333,20 +355,24 @@ class NotificationService {
 
     await startLiveActivityIfEligible(order);
 
-    final firstMinutes = order.firstReminderMinutes <= 0 ? 720 : order.firstReminderMinutes;
-    final liveMinutes = order.liveActivityMinutes <= 0 ? 60 : order.liveActivityMinutes;
+    final firstMinutes =
+        order.firstReminderMinutes <= 0 ? 720 : order.firstReminderMinutes;
+    final liveMinutes =
+        order.liveActivityMinutes <= 0 ? 60 : order.liveActivityMinutes;
     final reminders = <({int slot, DateTime when, String title, String body})>[
       (
         slot: 1,
         when: at.subtract(Duration(minutes: firstMinutes)),
         title: '🚌 Напоминание о заказе',
-        body: '${order.title} • ${order.time}${order.note == null || order.note!.trim().isEmpty ? '' : '\n${order.note}'}',
+        body:
+            '${order.title} • ${order.time}${order.note == null || order.note!.trim().isEmpty ? '' : '\n${order.note}'}',
       ),
       (
         slot: 2,
         when: at.subtract(Duration(minutes: liveMinutes)),
         title: '🚌 Скоро заказ',
-        body: '${order.title} • ${order.time} • осталось ${_durationLabel(liveMinutes)}${order.note == null || order.note!.trim().isEmpty ? '' : '\n${order.note}'}',
+        body:
+            '${order.title} • ${order.time} • осталось ${_durationLabel(liveMinutes)}${order.note == null || order.note!.trim().isEmpty ? '' : '\n${order.note}'}',
       ),
     ];
 
@@ -387,8 +413,30 @@ class NotificationService {
     await endLiveActivity(id);
   }
 
+  // Use a positive namespace for calendar events. Older builds used negative
+  // ids; keeping a legacy id helper lets us clean those pending activities up.
+  int _calendarLiveId(int id) => 1000000000 + id;
+  int _legacyCalendarLiveId(int id) => -1000000 - id;
 
-  int _calendarLiveId(int id) => -1000000 - id;
+  DateTime? _calendarEventDate(String date, String? time) {
+    if (time == null || time.isEmpty) return null;
+    final dp = date.split('-');
+    final tp = time.split(':');
+    if (dp.length != 3 || tp.length < 2) return null;
+    final year = int.tryParse(dp[0]);
+    final month = int.tryParse(dp[1]);
+    final day = int.tryParse(dp[2]);
+    final hour = int.tryParse(tp[0]);
+    final minute = int.tryParse(tp[1]);
+    if (year == null ||
+        month == null ||
+        day == null ||
+        hour == null ||
+        minute == null) {
+      return null;
+    }
+    return DateTime(year, month, day, hour, minute);
+  }
 
   Future<void> startCalendarNoteLiveActivityIfEligible({
     required int id,
@@ -398,48 +446,157 @@ class NotificationService {
     String? body,
     required bool enabled,
     required int reminderMinutes,
+    bool replaceExisting = true,
   }) async {
     if (kIsWeb ||
         defaultTargetPlatform != TargetPlatform.iOS ||
-        !enabled ||
-        time == null ||
-        time.isEmpty) {
+        !enabled) {
       return;
     }
-    final dp = date.split('-');
-    final tp = time.split(':');
-    if (dp.length != 3 || tp.length < 2) return;
-    final at = DateTime(
-      int.parse(dp[0]),
-      int.parse(dp[1]),
-      int.parse(dp[2]),
-      int.parse(tp[0]),
-      int.parse(tp[1]),
-    );
+
+    final at = _calendarEventDate(date, time);
+    if (at == null || !at.isAfter(DateTime.now())) return;
+
+    // Remove the identifier used by older builds so it can never compete with
+    // the new generic calendar-event activity.
+    await endLiveActivity(_legacyCalendarLiveId(id));
 
     await _scheduleLiveActivity(
       activityId: _calendarLiveId(id),
-      title: '📌 $title',
-      time: time,
+      kind: 'note',
+      title: title,
+      time: time!,
       note: body ?? '',
       eventAt: at,
       leadMinutes: reminderMinutes <= 0 ? 60 : reminderMinutes,
+      replaceExisting: replaceExisting,
     );
   }
 
+  /// Recovery helper for calendar notes created before this build.
   Future<void> startNearestCalendarNoteLiveActivityIfEligible() async {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
     final db = await DatabaseHelper.instance.database;
     final vehicleId = await DatabaseHelper.instance.getActiveVehicleId();
-    final rows = await db.query('calendar_notes', where: 'vehicle_id = ? AND reminder_enabled = 1 AND time IS NOT NULL', whereArgs: [vehicleId], orderBy: 'date ASC, time ASC');
+    final rows = await db.query(
+      'calendar_notes',
+      where:
+          'vehicle_id = ? AND reminder_enabled = 1 AND time IS NOT NULL',
+      whereArgs: [vehicleId],
+      orderBy: 'date ASC, time ASC',
+    );
     final now = DateTime.now();
     for (final row in rows) {
-      final dp=(row['date']?.toString()??'').split('-'); final tp=(row['time']?.toString()??'').split(':');
-      if(dp.length!=3||tp.length<2) continue;
-      final at=DateTime(int.parse(dp[0]),int.parse(dp[1]),int.parse(dp[2]),int.parse(tp[0]),int.parse(tp[1]));
-      if(!at.isAfter(now)) continue;
-      await startCalendarNoteLiveActivityIfEligible(id:(row['id'] as num).toInt(), date:row['date'].toString(), time:row['time']?.toString(), title:row['title']?.toString()??'Заметка', body:row['body']?.toString(), enabled:true, reminderMinutes:(row['reminder_minutes'] as num?)?.toInt()??60);
+      final at = _calendarEventDate(
+        row['date']?.toString() ?? '',
+        row['time']?.toString(),
+      );
+      if (at == null || !at.isAfter(now)) continue;
+      await startCalendarNoteLiveActivityIfEligible(
+        id: (row['id'] as num).toInt(),
+        date: row['date'].toString(),
+        time: row['time']?.toString(),
+        title: row['title']?.toString() ?? 'Заметка',
+        body: row['body']?.toString(),
+        enabled: true,
+        reminderMinutes:
+            (row['reminder_minutes'] as num?)?.toInt() ?? 60,
+        replaceExisting: false,
+      );
       break;
+    }
+  }
+
+  /// Re-registers a small chronological recovery window for both orders and
+  /// calendar notes. New/edited events are scheduled immediately when saved;
+  /// this mainly restores Live Activities after upgrading the app or reinstalling
+  /// it. Scheduled Live Activities count toward the iOS system limit, so the
+  /// recovery pass intentionally prioritizes only the nearest events.
+  Future<void> refreshUpcomingLiveActivities({int maxEvents = 6}) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
+
+    final db = await DatabaseHelper.instance.database;
+    final vehicleId = await DatabaseHelper.instance.getActiveVehicleId();
+    final now = DateTime.now();
+
+    final candidates = <({
+      DateTime at,
+      int activityId,
+      String kind,
+      String title,
+      String time,
+      String note,
+      int leadMinutes,
+      int? legacyId,
+    })>[];
+
+    final orderRows = await db.query(
+      'orders',
+      where: 'vehicle_id = ? AND status = ?',
+      whereArgs: [vehicleId, 'planned'],
+      orderBy: 'date ASC, time ASC',
+    );
+    for (final row in orderRows) {
+      final order = Order.fromMap(row);
+      final at = _date(order);
+      if (order.id == null || at == null || !at.isAfter(now)) continue;
+      candidates.add((
+        at: at,
+        activityId: order.id!,
+        kind: 'order',
+        title: order.title,
+        time: order.time,
+        note: order.note ?? '',
+        leadMinutes:
+            order.liveActivityMinutes <= 0 ? 60 : order.liveActivityMinutes,
+        legacyId: null,
+      ));
+    }
+
+    final noteRows = await db.query(
+      'calendar_notes',
+      where:
+          'vehicle_id = ? AND reminder_enabled = 1 AND time IS NOT NULL',
+      whereArgs: [vehicleId],
+      orderBy: 'date ASC, time ASC',
+    );
+    for (final row in noteRows) {
+      final id = (row['id'] as num?)?.toInt();
+      final date = row['date']?.toString() ?? '';
+      final time = row['time']?.toString();
+      final at = _calendarEventDate(date, time);
+      if (id == null || at == null || !at.isAfter(now) || time == null) continue;
+      candidates.add((
+        at: at,
+        activityId: _calendarLiveId(id),
+        kind: 'note',
+        title: row['title']?.toString() ?? 'Заметка',
+        time: time,
+        note: row['body']?.toString() ?? '',
+        leadMinutes:
+            ((row['reminder_minutes'] as num?)?.toInt() ?? 60) <= 0
+                ? 60
+                : (row['reminder_minutes'] as num?)?.toInt() ?? 60,
+        legacyId: _legacyCalendarLiveId(id),
+      ));
+    }
+
+    candidates.sort((a, b) => a.at.compareTo(b.at));
+
+    for (final event in candidates.take(maxEvents)) {
+      if (event.legacyId != null) {
+        await endLiveActivity(event.legacyId!);
+      }
+      await _scheduleLiveActivity(
+        activityId: event.activityId,
+        kind: event.kind,
+        title: event.title,
+        time: event.time,
+        note: event.note,
+        eventAt: event.at,
+        leadMinutes: event.leadMinutes,
+        replaceExisting: false,
+      );
     }
   }
 
@@ -450,6 +607,7 @@ class NotificationService {
     await initialize();
     await _plugin.cancel(_calendarNoteId(id));
     await endLiveActivity(_calendarLiveId(id));
+    await endLiveActivity(_legacyCalendarLiveId(id));
   }
 
   Future<void> scheduleCalendarNote({
@@ -465,6 +623,7 @@ class NotificationService {
     await initialize();
     await _plugin.cancel(_calendarNoteId(id));
     await endLiveActivity(_calendarLiveId(id));
+    await endLiveActivity(_legacyCalendarLiveId(id));
     if (!enabled || time == null || time.isEmpty) return;
 
     final effectiveReminderMinutes = reminderMinutes <= 0 ? 60 : reminderMinutes;
@@ -478,13 +637,8 @@ class NotificationService {
       reminderMinutes: effectiveReminderMinutes,
     );
 
-    final dp = date.split('-');
-    final tp = time.split(':');
-    if (dp.length != 3 || tp.length < 2) return;
-    final eventAt = DateTime(
-      int.parse(dp[0]), int.parse(dp[1]), int.parse(dp[2]),
-      int.parse(tp[0]), int.parse(tp[1]),
-    );
+    final eventAt = _calendarEventDate(date, time);
+    if (eventAt == null) return;
     final when = eventAt.subtract(Duration(minutes: effectiveReminderMinutes));
     if (!when.isAfter(DateTime.now())) return;
 

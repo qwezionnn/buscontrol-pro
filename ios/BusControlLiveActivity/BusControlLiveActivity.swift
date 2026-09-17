@@ -14,11 +14,18 @@ struct BusControlLiveActivityBundle: WidgetBundle {
 // MARK: - Live Activity
 
 struct BusControlOrderLiveActivity: Widget {
+    private func eventIcon(_ kind: String) -> String {
+        switch kind {
+        case "note": return "📌"
+        default: return "🚌"
+        }
+    }
+
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: BusOrderAttributes.self) { context in
             VStack(alignment: .leading, spacing: 7) {
                 HStack {
-                    Text("🚌 BusControl PRO")
+                    Text("\(eventIcon(context.state.kind)) BusControl PRO")
                         .font(.headline)
                     Spacer()
                     Text(context.state.time)
@@ -45,7 +52,7 @@ struct BusControlOrderLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Text("🚌")
+                    Text(eventIcon(context.state.kind))
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Text(context.state.time).font(.headline)
@@ -64,13 +71,13 @@ struct BusControlOrderLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                Text("🚌")
+                Text(eventIcon(context.state.kind))
             } compactTrailing: {
                 Text(timerInterval: Date()...context.state.orderDate, countsDown: true)
                     .monospacedDigit()
                     .frame(width: 52)
             } minimal: {
-                Text("🚌")
+                Text(eventIcon(context.state.kind))
             }
             .keylineTint(.white)
         }

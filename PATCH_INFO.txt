@@ -1,17 +1,24 @@
-BusControl PRO — порядок блоков экрана «Сегодня»
+BusControl PRO — Unified Live Activity patch
 
-Порядок:
-1. Быстрые действия
-2. Утро / вечер / дополнительный рейс + встроенное напоминание о конечном пробеге
-3. Заказы
-4. Заправка
-5. Этот месяц
-6. Затраты за сегодня — только если они есть
-7. Ввод конечного пробега
+Apply over the current bus_control_pro_final project with file replacement.
 
-Убраны с главного экрана:
-- «Требует внимания»
-- «Контроль дня / День закрыт»
-- отдельный блок кредитного платежа
+Changes:
+- One common iOS Live Activity pipeline for orders and calendar notes.
+- Calendar notes use their own positive Live Activity id namespace.
+- Cleans up legacy negative-id note activities from older builds.
+- Uses the current iOS 26 scheduled Live Activity API (start: Date).
+- Notes show a pin icon; orders show a bus icon.
+- Countdown, event time, title and comment remain visible.
+- Default lead time remains 60 minutes when a stored value is invalid/zero.
+- Existing adjustable hours+minutes setting remains unchanged.
+- Ordinary local notifications remain as fallback.
+- Startup recovery registers the nearest upcoming events without replacing ones already registered.
+- Native and Dart logging now reports Live Activity registration errors instead of silently swallowing them.
 
-Логика самих рейсов и напоминания о конечном пробеге не менялась.
+Changed files only:
+- ios/Shared/BusOrderAttributes.swift
+- ios/Runner/LiveActivityManager.swift
+- ios/Runner/AppDelegate.swift
+- ios/BusControlLiveActivity/BusControlLiveActivity.swift
+- lib/services/notification_service.dart
+- lib/main.dart

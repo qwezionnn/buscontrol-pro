@@ -6,46 +6,26 @@ final class LiveActivityManager {
     static let shared = LiveActivityManager()
     private init() {}
 
-    private func endExisting(orderId: Int) async {
-        for activity in Activity<BusOrderAttributes>.activities where activity.attributes.orderId == orderId {
+    private func existing(eventId: Int) -> Activity<BusOrderAttributes>? {
+        Activity<BusOrderAttributes>.activities.first {
+            $0.attributes.orderId == eventId
+        }
+    }
+
+    private func endExisting(eventId: Int) async {
+        for activity in Activity<BusOrderAttributes>.activities where activity.attributes.orderId == eventId {
             await activity.end(using: nil, dismissalPolicy: .immediate)
         }
     }
 
-    func start(orderId: Int, title: String, time: String, note: String, orderDate: Date) async throws {
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
-            throw NSError(
-                domain: "BusControlLiveActivity",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Live Activities are disabled"]
-            )
-        }
-
-        await endExisting(orderId: orderId)
-
-        let attributes = BusOrderAttributes(orderId: orderId)
-        let state = BusOrderAttributes.ContentState(
-            title: title,
-            time: time,
-            note: note,
-            orderDate: orderDate
-        )
-        _ = try Activity.request(
-            attributes: attributes,
-            contentState: state,
-            pushType: nil
-        )
-    }
-
-    /// iOS 26 can register a Live Activity now and let the system start it at
-    /// `startDate`, even when BusControl PRO is no longer in the foreground.
-    func schedule(
-        orderId: Int,
+    func start(
+        eventId: Int,
+        kind: String,
         title: String,
         time: String,
         note: String,
-        orderDate: Date,
-        startDate: Date
+        eventDate: Date,
+        replaceExisting: Bool = true
     ) async throws {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
             throw NSError(
@@ -55,15 +35,66 @@ final class LiveActivityManager {
             )
         }
 
-        await endExisting(orderId: orderId)
+        if replaceExisting {
+            await endExisting(eventId: eventId)
+        } else if existing(eventId: eventId) != nil {
+            NSLog("BusControl Live Activity already registered: id=%d", eventId)
+            return
+        }
+
+        let attributes = BusOrderAttributes(orderId: eventId)
+        let state = BusOrderAttributes.ContentState(
+            title: title,
+            time: time,
+            note: note,
+            orderDate: eventDate,
+            kind: kind
+        )
+
+        let activity = try Activity.request(
+            attributes: attributes,
+            contentState: state,
+            pushType: nil
+        )
+        NSLog("BusControl Live Activity started: id=%d kind=%@ activity=%@", eventId, kind, activity.id)
+    }
+
+    /// iOS 26 can register a Live Activity in advance and let the system start
+    /// it at `startDate`, even when BusControl PRO is no longer in foreground.
+    func schedule(
+        eventId: Int,
+        kind: String,
+        title: String,
+        time: String,
+        note: String,
+        eventDate: Date,
+        startDate: Date,
+        replaceExisting: Bool = true
+    ) async throws {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            throw NSError(
+                domain: "BusControlLiveActivity",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Live Activities are disabled"]
+            )
+        }
+
+        if replaceExisting {
+            await endExisting(eventId: eventId)
+        } else if existing(eventId: eventId) != nil {
+            NSLog("BusControl scheduled Live Activity already registered: id=%d", eventId)
+            return
+        }
 
         if startDate <= Date() {
             try await start(
-                orderId: orderId,
+                eventId: eventId,
+                kind: kind,
                 title: title,
                 time: time,
                 note: note,
-                orderDate: orderDate
+                eventDate: eventDate,
+                replaceExisting: false
             )
             return
         }
@@ -76,16 +107,18 @@ final class LiveActivityManager {
             )
         }
 
-        let attributes = BusOrderAttributes(orderId: orderId)
+        let attributes = BusOrderAttributes(orderId: eventId)
         let state = BusOrderAttributes.ContentState(
             title: title,
             time: time,
             note: note,
-            orderDate: orderDate
+            orderDate: eventDate,
+            kind: kind
         )
         let content = ActivityContent(
             state: state,
-            staleDate: orderDate
+            staleDate: eventDate,
+            relevanceScore: 100
         )
         let alert = AlertConfiguration(
             title: "BusControl PRO",
@@ -93,7 +126,7 @@ final class LiveActivityManager {
             sound: .default
         )
 
-        _ = try Activity.request(
+        let activity = try Activity.request(
             attributes: attributes,
             content: content,
             pushType: nil,
@@ -101,9 +134,17 @@ final class LiveActivityManager {
             alertConfiguration: alert,
             start: startDate
         )
+        NSLog(
+            "BusControl Live Activity scheduled: id=%d kind=%@ start=%@ event=%@ activity=%@",
+            eventId,
+            kind,
+            startDate.description,
+            eventDate.description,
+            activity.id
+        )
     }
 
-    func end(orderId: Int) async {
-        await endExisting(orderId: orderId)
+    func end(eventId: Int) async {
+        await endExisting(eventId: eventId)
     }
 }

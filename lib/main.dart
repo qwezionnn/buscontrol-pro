@@ -48,11 +48,10 @@ Future<void> main() async {
   await NotificationService.instance.refreshEndMileageReminderSchedule();
   await NotificationService.instance.refreshMaintenanceReminders();
 
-  // Restore/register the nearest upcoming iOS Live Activities. Newly saved
-  // orders and calendar notes are scheduled immediately when they are saved.
+  // Restore/register the nearest upcoming iOS Live Activities after an update
+  // or reinstall. Newly saved orders and calendar notes register immediately.
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
-    await NotificationService.instance.startNearestLiveActivityIfEligible();
-    await NotificationService.instance.startNearestCalendarNoteLiveActivityIfEligible();
+    await NotificationService.instance.refreshUpcomingLiveActivities();
   }
 
   runApp(const BusControlApp());

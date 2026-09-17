@@ -48,15 +48,27 @@ import WidgetKit
         return
       }
 
-      guard let args = call.arguments as? [String: Any],
-            let orderId = args["orderId"] as? Int else {
-        result(FlutterError(code: "bad_args", message: "Missing orderId", details: nil))
+      guard let args = call.arguments as? [String: Any] else {
+        result(FlutterError(code: "bad_args", message: "Missing arguments", details: nil))
+        return
+      }
+
+      let rawEventId = args["eventId"] ?? args["orderId"]
+      let eventId: Int?
+      if let number = rawEventId as? NSNumber {
+        eventId = number.intValue
+      } else {
+        eventId = rawEventId as? Int
+      }
+
+      guard let eventId else {
+        result(FlutterError(code: "bad_args", message: "Missing eventId", details: nil))
         return
       }
 
       if call.method == "end" {
         Task {
-          await LiveActivityManager.shared.end(orderId: orderId)
+          await LiveActivityManager.shared.end(eventId: eventId)
           result(nil)
         }
         return
@@ -65,13 +77,15 @@ import WidgetKit
       guard (call.method == "start" || call.method == "schedule"),
             let title = args["title"] as? String,
             let time = args["time"] as? String,
-            let note = args["note"] as? String,
             let timestampMs = args["orderTimestampMs"] as? NSNumber else {
         result(FlutterMethodNotImplemented)
         return
       }
 
-      let orderDate = Date(timeIntervalSince1970: timestampMs.doubleValue / 1000.0)
+      let note = args["note"] as? String ?? ""
+      let kind = args["kind"] as? String ?? "order"
+      let replaceExisting = args["replaceExisting"] as? Bool ?? true
+      let eventDate = Date(timeIntervalSince1970: timestampMs.doubleValue / 1000.0)
       let startTimestampMs = args["startTimestampMs"] as? NSNumber
       let startDate = startTimestampMs.map {
         Date(timeIntervalSince1970: $0.doubleValue / 1000.0)
@@ -81,24 +95,29 @@ import WidgetKit
         do {
           if call.method == "schedule", let startDate {
             try await LiveActivityManager.shared.schedule(
-              orderId: orderId,
+              eventId: eventId,
+              kind: kind,
               title: title,
               time: time,
               note: note,
-              orderDate: orderDate,
-              startDate: startDate
+              eventDate: eventDate,
+              startDate: startDate,
+              replaceExisting: replaceExisting
             )
           } else {
             try await LiveActivityManager.shared.start(
-              orderId: orderId,
+              eventId: eventId,
+              kind: kind,
               title: title,
               time: time,
               note: note,
-              orderDate: orderDate
+              eventDate: eventDate,
+              replaceExisting: replaceExisting
             )
           }
           result(nil)
         } catch {
+          NSLog("BusControl Live Activity error: id=%d kind=%@ error=%@", eventId, kind, error.localizedDescription)
           result(FlutterError(code: "live_activity", message: error.localizedDescription, details: nil))
         }
       }
