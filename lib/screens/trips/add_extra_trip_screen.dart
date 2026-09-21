@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../widgets/time_wheel_picker.dart';
 
-import '../../database/database_helper.dart';
+import '../../repositories/trip_repository.dart';
 
 class AddExtraTripScreen extends StatefulWidget {
-  const AddExtraTripScreen({super.key, this.initialDate});
+  const AddExtraTripScreen({super.key, this.initialDate, this.initialTrip});
 
   final DateTime? initialDate;
+  final Map<String, Object?>? initialTrip;
 
   @override
   State<AddExtraTripScreen> createState() => _AddExtraTripScreenState();
@@ -24,12 +25,40 @@ class _AddExtraTripScreenState extends State<AddExtraTripScreen> {
   TimeOfDay _selectedTime = TimeOfDay.now();
   bool _isSaving = false;
 
+  bool get _isEditing => widget.initialTrip != null;
+
   @override
   void initState() {
     super.initState();
+    final trip = widget.initialTrip;
+    if (trip != null) {
+      _titleController.text = trip['title']?.toString() ?? '';
+      _priceController.text =
+          ((trip['price'] as num?)?.toDouble() ?? 0).toStringAsFixed(0);
+      _waitHoursController.text =
+          ((trip['wait_hours'] as num?)?.toDouble() ?? 0).toString();
+      _waitRateController.text =
+          ((trip['wait_rate'] as num?)?.toDouble() ?? 0).toStringAsFixed(0);
+
+      final date = DateTime.tryParse(trip['date']?.toString() ?? '');
+      if (date != null) {
+        _selectedDate = DateTime(date.year, date.month, date.day);
+      }
+      final time = trip['time']?.toString().split(':');
+      if (time != null && time.length >= 2) {
+        final hour = int.tryParse(time[0]);
+        final minute = int.tryParse(time[1]);
+        if (hour != null && minute != null) {
+          _selectedTime = TimeOfDay(hour: hour, minute: minute);
+        }
+      }
+      return;
+    }
+
     final initialDate = widget.initialDate;
     if (initialDate != null) {
-      _selectedDate = DateTime(initialDate.year, initialDate.month, initialDate.day);
+      _selectedDate =
+          DateTime(initialDate.year, initialDate.month, initialDate.day);
     }
   }
 
@@ -47,9 +76,6 @@ class _AddExtraTripScreenState extends State<AddExtraTripScreen> {
 
   String _formatDate(DateTime date) =>
       '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
-
-  String _databaseDate(DateTime date) =>
-      '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
   String _databaseTime(TimeOfDay time) =>
       '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
@@ -91,15 +117,27 @@ class _AddExtraTripScreenState extends State<AddExtraTripScreen> {
 
     setState(() => _isSaving = true);
     try {
-      await DatabaseHelper.instance.addTrip(
-        date: _databaseDate(_selectedDate),
-        time: _databaseTime(_selectedTime),
-        title: _titleController.text.trim(),
-        type: 'extra',
-        price: price,
-        waitHours: waitHours,
-        waitRate: waitRate,
-      );
+      final tripId = (widget.initialTrip?['id'] as num?)?.toInt();
+      if (_isEditing && tripId != null) {
+        await TripRepository.instance.editExtraTrip(
+          tripId: tripId,
+          date: _selectedDate,
+          time: _databaseTime(_selectedTime),
+          title: _titleController.text.trim(),
+          price: price,
+          waitHours: waitHours,
+          waitRate: waitRate,
+        );
+      } else {
+        await TripRepository.instance.addExtraTrip(
+          date: _selectedDate,
+          time: _databaseTime(_selectedTime),
+          title: _titleController.text.trim(),
+          price: price,
+          waitHours: waitHours,
+          waitRate: waitRate,
+        );
+      }
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
       if (mounted) {
@@ -120,7 +158,9 @@ class _AddExtraTripScreenState extends State<AddExtraTripScreen> {
     final total = _parse(_priceController) + waitTotal;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Дополнительный рейс')),
+      appBar: AppBar(
+        title: Text(_isEditing ? 'Редактировать доп. рейс' : 'Дополнительный рейс'),
+      ),
       body: SafeArea(
         child: Form(
           key: _formKey,
@@ -273,7 +313,11 @@ class _AddExtraTripScreenState extends State<AddExtraTripScreen> {
               FilledButton.icon(
                 onPressed: _isSaving ? null : _saveTrip,
                 icon: const Icon(Icons.save),
-                label: Text(_isSaving ? 'Сохраняю…' : 'Сохранить рейс'),
+                label: Text(
+                  _isSaving
+                      ? 'Сохраняю…'
+                      : (_isEditing ? 'Сохранить изменения' : 'Сохранить рейс'),
+                ),
               ),
             ],
           ),

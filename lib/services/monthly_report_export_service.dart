@@ -19,7 +19,8 @@ class MonthlyExportOptions {
     this.expenses = true,
     this.repairs = true,
     this.mileage = true,
-    this.summaryTrips = true,
+    this.summaryRegularTrips = true,
+    this.summaryExtraTrips = true,
     this.summaryOrders = true,
     this.summaryFuel = true,
     this.summaryExpenses = true,
@@ -33,7 +34,8 @@ class MonthlyExportOptions {
   final bool expenses;
   final bool repairs;
   final bool mileage;
-  final bool summaryTrips;
+  final bool summaryRegularTrips;
+  final bool summaryExtraTrips;
   final bool summaryOrders;
   final bool summaryFuel;
   final bool summaryExpenses;
@@ -239,12 +241,34 @@ class MonthlyReportExportService {
       ]);
     }
     if (options.trips) {
+      final regularTrips = data.trips
+          .where((trip) => trip['type'] != 'extra')
+          .toList(growable: false);
+      final extraTrips = data.trips
+          .where((trip) => trip['type'] == 'extra')
+          .toList(growable: false);
+
+      List<List<String>> tripRows(List<Map<String, Object?>> trips) =>
+          trips.map((trip) {
+            final wait = _waitHours(trip) > 0
+                ? '${_number(_waitHours(trip))} ч × ${_money(_waitRate(trip))}'
+                : '';
+            return [
+              _formatDate(trip['date']),
+              trip['time']?.toString() ?? '',
+              trip['title']?.toString() ?? 'Рейс',
+              _tripType(trip['type']),
+              _money(_tripBase(trip)),
+              wait,
+              _money(_tripTotal(trip)),
+              trip['price_note']?.toString() ?? '',
+            ];
+          }).toList();
+
       content.addAll([
-        _sectionTitle('Рейсы'),
-        _tripSummaryPdf(stats),
-        pw.SizedBox(height: 10),
-        if (data.trips.isEmpty)
-          _emptyText('Выполненных рейсов за месяц нет.')
+        _sectionTitle('Мои смены — утро / вечер'),
+        if (regularTrips.isEmpty)
+          _emptyText('Выполненных утренних и вечерних смен за месяц нет.')
         else
           _pdfTable(
             const [
@@ -252,26 +276,30 @@ class MonthlyReportExportService {
               'Время',
               'Наименование',
               'Тип',
-              'Рейс',
+              'Сумма',
               'Ожидание',
               'Итого',
               'Комментарий',
             ],
-            data.trips.map((trip) {
-              final wait = _waitHours(trip) > 0
-                  ? '${_number(_waitHours(trip))} ч × ${_money(_waitRate(trip))}'
-                  : '';
-              return [
-                _formatDate(trip['date']),
-                trip['time']?.toString() ?? '',
-                trip['title']?.toString() ?? 'Рейс',
-                _tripType(trip['type']),
-                _money(_tripBase(trip)),
-                wait,
-                _money(_tripTotal(trip)),
-                trip['price_note']?.toString() ?? '',
-              ];
-            }).toList(),
+            tripRows(regularTrips),
+          ),
+        pw.SizedBox(height: 16),
+        _sectionTitle('Дополнительные смены'),
+        if (extraTrips.isEmpty)
+          _emptyText('Дополнительных смен за месяц нет.')
+        else
+          _pdfTable(
+            const [
+              'Дата',
+              'Время',
+              'Наименование',
+              'Тип',
+              'Сумма',
+              'Ожидание',
+              'Итого',
+              'Комментарий',
+            ],
+            tripRows(extraTrips),
           ),
         pw.SizedBox(height: 20),
       ]);
@@ -417,13 +445,31 @@ class MonthlyReportExportService {
 
   pw.Widget _summaryCard(MonthReport report, _TripStats stats, MonthlyExportOptions options) {
     final rows = <List<String>>[
-      if (options.summaryTrips) ...[
-        ['Полных рейсов (утро + вечер)', '${stats.fullDays}'],
+      if (options.summaryRegularTrips) ...[
+        [
+          'Мои смены (утро + вечер)',
+          '${stats.regularCount} • ${_money(stats.regularAmount)}',
+        ],
+        ['Полных смен (утро + вечер)', '${stats.fullDays}'],
         ['Неполных дней', '${stats.partialDays}'],
-        ['Утренних поездок', '${stats.morningCount} • ${_money(stats.morningAmount)}'],
-        ['Вечерних поездок', '${stats.eveningCount} • ${_money(stats.eveningAmount)}'],
-        ['Доп. рейсов', '${stats.extraCount} • ${_money(stats.extraTotalAmount)}'],
-        ['Ожидание в доп. рейсах', '${_number(stats.extraWaitHours)} ч • ${_money(stats.extraWaitAmount)}'],
+        [
+          'Утренние смены',
+          '${stats.morningCount} • ${_money(stats.morningAmount)}',
+        ],
+        [
+          'Вечерние смены',
+          '${stats.eveningCount} • ${_money(stats.eveningAmount)}',
+        ],
+      ],
+      if (options.summaryExtraTrips) ...[
+        [
+          'Дополнительные смены',
+          '${stats.extraCount} • ${_money(stats.extraTotalAmount)}',
+        ],
+        [
+          'Ожидание в доп. сменах',
+          '${_number(stats.extraWaitHours)} ч • ${_money(stats.extraWaitAmount)}',
+        ],
       ],
       if (options.summaryOrders) ['Доход от заказов', _money(report.orderIncome)],
       if (options.summaryFuel) ...[
@@ -466,22 +512,6 @@ class MonthlyReportExportService {
     );
   }
 
-  pw.Widget _tripSummaryPdf(_TripStats stats) => pw.Container(
-        padding: const pw.EdgeInsets.all(10),
-        color: PdfColors.grey100,
-        child: pw.Wrap(
-          spacing: 18,
-          runSpacing: 6,
-          children: [
-            pw.Text('Полных: ${stats.fullDays}'),
-            pw.Text('Неполных: ${stats.partialDays}'),
-            pw.Text('Утро: ${stats.morningCount} / ${_money(stats.morningAmount)}'),
-            pw.Text('Вечер: ${stats.eveningCount} / ${_money(stats.eveningAmount)}'),
-            pw.Text('Доп.: ${stats.extraCount} / ${_money(stats.extraTotalAmount)}'),
-            pw.Text('Ожидание: ${_number(stats.extraWaitHours)} ч / ${_money(stats.extraWaitAmount)}'),
-          ],
-        ),
-      );
 
   pw.Widget _sectionTitle(String title) => pw.Padding(
         padding: const pw.EdgeInsets.only(bottom: 8),
@@ -559,12 +589,13 @@ class MonthlyReportExportService {
       final summary = excel['Сводка'];
       summary.appendRow([TextCellValue('Сводка — ${_monthTitle(month)}')]);
       summary.appendRow([TextCellValue('Показатель'), TextCellValue('Количество'), TextCellValue('Сумма')]);
-      if (options.summaryTrips) summary.appendRow([TextCellValue('Полный рейс (утро + вечер)'), IntCellValue(stats.fullDays), DoubleCellValue(stats.regularAmount)]);
-      if (options.summaryTrips) summary.appendRow([TextCellValue('Неполный день'), IntCellValue(stats.partialDays), TextCellValue('')]);
-      if (options.summaryTrips) summary.appendRow([TextCellValue('Утренние поездки'), IntCellValue(stats.morningCount), DoubleCellValue(stats.morningAmount)]);
-      if (options.summaryTrips) summary.appendRow([TextCellValue('Вечерние поездки'), IntCellValue(stats.eveningCount), DoubleCellValue(stats.eveningAmount)]);
-      if (options.summaryTrips) summary.appendRow([TextCellValue('Дополнительные рейсы'), IntCellValue(stats.extraCount), DoubleCellValue(stats.extraTotalAmount)]);
-      if (options.summaryTrips) summary.appendRow([TextCellValue('Ожидание в доп. рейсах, часов'), DoubleCellValue(stats.extraWaitHours), DoubleCellValue(stats.extraWaitAmount)]);
+      if (options.summaryRegularTrips) summary.appendRow([TextCellValue('Мои смены — всего'), IntCellValue(stats.regularCount), DoubleCellValue(stats.regularAmount)]);
+      if (options.summaryRegularTrips) summary.appendRow([TextCellValue('Полные смены (утро + вечер)'), IntCellValue(stats.fullDays), TextCellValue('')]);
+      if (options.summaryRegularTrips) summary.appendRow([TextCellValue('Неполные дни'), IntCellValue(stats.partialDays), TextCellValue('')]);
+      if (options.summaryRegularTrips) summary.appendRow([TextCellValue('Утренние смены'), IntCellValue(stats.morningCount), DoubleCellValue(stats.morningAmount)]);
+      if (options.summaryRegularTrips) summary.appendRow([TextCellValue('Вечерние смены'), IntCellValue(stats.eveningCount), DoubleCellValue(stats.eveningAmount)]);
+      if (options.summaryExtraTrips) summary.appendRow([TextCellValue('Дополнительные смены — всего'), IntCellValue(stats.extraCount), DoubleCellValue(stats.extraTotalAmount)]);
+      if (options.summaryExtraTrips) summary.appendRow([TextCellValue('Ожидание в доп. сменах, часов'), DoubleCellValue(stats.extraWaitHours), DoubleCellValue(stats.extraWaitAmount)]);
       if (options.summaryOrders) summary.appendRow([TextCellValue('Заказы'), IntCellValue(data.report.completedOrders), DoubleCellValue(data.report.orderIncome)]);
       if (options.summaryFuel) summary.appendRow([TextCellValue('Топливо, л'), DoubleCellValue(data.report.fuelLiters), DoubleCellValue(data.report.fuelCost)]);
       if (options.summaryExpenses) summary.appendRow([TextCellValue('Другие расходы'), TextCellValue(''), DoubleCellValue(data.report.expenseCost)]);
@@ -582,33 +613,46 @@ class MonthlyReportExportService {
     }
 
     if (options.trips) {
-      final sheet = excel['Рейсы'];
-      sheet.appendRow([
-        TextCellValue('Дата'),
-        TextCellValue('Время'),
-        TextCellValue('Наименование'),
-        TextCellValue('Тип'),
-        TextCellValue('Стоимость рейса'),
-        TextCellValue('Ожидание, ч'),
-        TextCellValue('Цена ожидания/ч'),
-        TextCellValue('Ожидание, сумма'),
-        TextCellValue('Итого'),
-        TextCellValue('Комментарий'),
-      ]);
-      for (final trip in data.trips) {
+      void fillTripSheet(
+        Sheet sheet,
+        Iterable<Map<String, Object?>> trips,
+      ) {
         sheet.appendRow([
-          TextCellValue(_formatDate(trip['date'])),
-          TextCellValue(trip['time']?.toString() ?? ''),
-          TextCellValue(trip['title']?.toString() ?? 'Рейс'),
-          TextCellValue(_tripType(trip['type'])),
-          DoubleCellValue(_tripBase(trip)),
-          DoubleCellValue(_waitHours(trip)),
-          DoubleCellValue(_waitRate(trip)),
-          DoubleCellValue(_waitTotal(trip)),
-          DoubleCellValue(_tripTotal(trip)),
-          TextCellValue(trip['price_note']?.toString() ?? ''),
+          TextCellValue('Дата'),
+          TextCellValue('Время'),
+          TextCellValue('Наименование'),
+          TextCellValue('Тип'),
+          TextCellValue('Стоимость смены'),
+          TextCellValue('Ожидание, ч'),
+          TextCellValue('Цена ожидания/ч'),
+          TextCellValue('Ожидание, сумма'),
+          TextCellValue('Итого'),
+          TextCellValue('Комментарий'),
         ]);
+        for (final trip in trips) {
+          sheet.appendRow([
+            TextCellValue(_formatDate(trip['date'])),
+            TextCellValue(trip['time']?.toString() ?? ''),
+            TextCellValue(trip['title']?.toString() ?? 'Рейс'),
+            TextCellValue(_tripType(trip['type'])),
+            DoubleCellValue(_tripBase(trip)),
+            DoubleCellValue(_waitHours(trip)),
+            DoubleCellValue(_waitRate(trip)),
+            DoubleCellValue(_waitTotal(trip)),
+            DoubleCellValue(_tripTotal(trip)),
+            TextCellValue(trip['price_note']?.toString() ?? ''),
+          ]);
+        }
       }
+
+      fillTripSheet(
+        excel['Мои смены'],
+        data.trips.where((trip) => trip['type'] != 'extra'),
+      );
+      fillTripSheet(
+        excel['Доп. смены'],
+        data.trips.where((trip) => trip['type'] == 'extra'),
+      );
     }
 
     if (options.orders) {
@@ -798,6 +842,7 @@ class _TripStats {
   final double extraWaitHours;
   final double extraWaitAmount;
 
+  int get regularCount => morningCount + eveningCount;
   double get regularAmount => morningAmount + eveningAmount;
   double get extraTotalAmount => extraBaseAmount + extraWaitAmount;
 }

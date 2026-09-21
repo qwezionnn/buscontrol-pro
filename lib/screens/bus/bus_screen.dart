@@ -9,6 +9,7 @@ import '../../widgets/bus_card.dart';
 import '../../widgets/simple_bar_chart.dart';
 import '../expenses/emergency_expense_screen.dart';
 import '../finance/finance_detail_screen.dart';
+import '../fuel/home_fuel_settlement_screen.dart';
 import 'mileage_history_screen.dart';
 import 'maintenance_screen.dart';
 import 'bus_expenses_screen.dart';
@@ -118,6 +119,15 @@ class _BusScreenState extends State<BusScreen> {
       ),
     );
     await _load();
+  }
+
+  Future<void> _openHomeFuelSettlement() async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => const HomeFuelSettlementScreen(),
+      ),
+    );
+    if (changed == true) await _load();
   }
 
   Future<void> _openPartBookmarks() async {
@@ -318,6 +328,32 @@ class _BusScreenState extends State<BusScreen> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              BusCard(
+                onTap: _openHomeFuelSettlement,
+                child: const Row(
+                  children: [
+                    Icon(Icons.account_balance_wallet_outlined, size: 34),
+                    SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Расчёт домашнего топлива',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text('Тот же расчёт, что доступен на главном экране'),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right),
+                  ],
+                ),
               ),
               const SizedBox(height: 16),
               BusCard(

@@ -214,6 +214,26 @@ class TripRepository {
     );
   }
 
+  Future<void> editExtraTrip({
+    required int tripId,
+    required DateTime date,
+    String? time,
+    required String title,
+    required double price,
+    double waitHours = 0,
+    double waitRate = 0,
+  }) {
+    return _databaseHelper.updateExtraTrip(
+      tripId: tripId,
+      date: _databaseDate(date),
+      time: time,
+      title: title,
+      price: price,
+      waitHours: waitHours,
+      waitRate: waitRate,
+    );
+  }
+
   Future<void> setCompleted({
     required int tripId,
     required bool completed,

@@ -417,6 +417,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
             if (isExtra) ...[
               const Divider(height: 1),
               ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('Редактировать доп. рейс'),
+                subtitle: const Text('Название, сумма, дата, время и ожидание'),
+                onTap: () => Navigator.pop(sheetContext, 'edit_extra'),
+              ),
+              const Divider(height: 1),
+              ListTile(
                 leading: const Icon(Icons.delete_outline, color: Colors.red),
                 title: const Text(
                   'Удалить рейс',
@@ -467,6 +474,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
         }
       }
       priceController.dispose(); noteController.dispose();
+      return;
+    }
+
+    if (action == 'edit_extra' && isExtra) {
+      final saved = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => AddExtraTripScreen(initialTrip: row),
+        ),
+      );
+      if (saved == true) {
+        await _load();
+      }
       return;
     }
 

@@ -1318,6 +1318,38 @@ class DatabaseHelper {
     );
   }
 
+  Future<void> updateExtraTrip({
+    required int tripId,
+    required String date,
+    String? time,
+    required String title,
+    required double price,
+    double waitHours = 0,
+    double waitRate = 0,
+  }) async {
+    if (title.trim().isEmpty) {
+      throw ArgumentError('Название дополнительного рейса не может быть пустым.');
+    }
+    if (price <= 0 || waitHours < 0 || waitRate < 0) {
+      throw ArgumentError('Проверьте стоимость и ожидание дополнительного рейса.');
+    }
+
+    final db = await database;
+    await db.update(
+      'trips',
+      {
+        'date': date,
+        'time': time,
+        'title': title.trim(),
+        'price': price,
+        'wait_hours': waitHours,
+        'wait_rate': waitRate,
+      },
+      where: 'id = ? AND type = ?',
+      whereArgs: [tripId, 'extra'],
+    );
+  }
+
   Future<List<Map<String, Object?>>> getTripsByDate(String date) async {
     final db = await database;
     final vehicleId = await getActiveVehicleId();

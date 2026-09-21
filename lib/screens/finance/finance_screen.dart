@@ -427,7 +427,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
     var expenses = true;
     var repairs = true;
     var mileage = true;
-    var summaryTrips = true;
+    var summaryRegularTrips = true;
+    var summaryExtraTrips = true;
     var summaryOrders = true;
     var summaryFuel = true;
     var summaryExpenses = true;
@@ -455,7 +456,24 @@ class _FinanceScreenState extends State<FinanceScreen> {
                     Padding(
                       padding: const EdgeInsets.only(left: 24),
                       child: Column(children: [
-                        CheckboxListTile(value: summaryTrips, dense: true, contentPadding: EdgeInsets.zero, title: const Text('Рейсы: утро, вечер, доп.'), onChanged: (v) => setLocal(() => summaryTrips = v ?? false)),
+                        CheckboxListTile(
+                          value: summaryRegularTrips,
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Мои смены (утро / вечер)'),
+                          onChanged: (v) => setLocal(
+                            () => summaryRegularTrips = v ?? false,
+                          ),
+                        ),
+                        CheckboxListTile(
+                          value: summaryExtraTrips,
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Дополнительные смены'),
+                          onChanged: (v) => setLocal(
+                            () => summaryExtraTrips = v ?? false,
+                          ),
+                        ),
                         CheckboxListTile(value: summaryOrders, dense: true, contentPadding: EdgeInsets.zero, title: const Text('Заказы'), onChanged: (v) => setLocal(() => summaryOrders = v ?? false)),
                         CheckboxListTile(value: summaryFuel, dense: true, contentPadding: EdgeInsets.zero, title: const Text('Топливо'), onChanged: (v) => setLocal(() => summaryFuel = v ?? false)),
                         CheckboxListTile(value: summaryExpenses, dense: true, contentPadding: EdgeInsets.zero, title: const Text('Другие расходы'), onChanged: (v) => setLocal(() => summaryExpenses = v ?? false)),
@@ -518,7 +536,12 @@ class _FinanceScreenState extends State<FinanceScreen> {
                   expenses = true;
                   repairs = true;
                   mileage = true;
-                  summaryTrips = true; summaryOrders = true; summaryFuel = true; summaryExpenses = true; summaryMileage = true;
+                  summaryRegularTrips = true;
+                  summaryExtraTrips = true;
+                  summaryOrders = true;
+                  summaryFuel = true;
+                  summaryExpenses = true;
+                  summaryMileage = true;
                 }),
                 child: const Text('Выбрать всё'),
               ),
@@ -534,7 +557,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
                             expenses: expenses,
                             repairs: repairs,
                             mileage: mileage,
-                            summaryTrips: summaryTrips,
+                            summaryRegularTrips: summaryRegularTrips,
+                            summaryExtraTrips: summaryExtraTrips,
                             summaryOrders: summaryOrders,
                             summaryFuel: summaryFuel,
                             summaryExpenses: summaryExpenses,
