@@ -1,3 +1,5 @@
+import 'dart:ui' show Rect;
+
 import 'package:flutter/foundation.dart';
 
 import 'package:excel/excel.dart';
@@ -269,7 +271,7 @@ class MonthlyReportExportService {
         _sectionTitle('Мои смены — утро / вечер'),
         if (regularTrips.isEmpty)
           _emptyText('Выполненных утренних и вечерних смен за месяц нет.')
-        else
+        else ...[
           _pdfTable(
             const [
               'Дата',
@@ -283,11 +285,22 @@ class MonthlyReportExportService {
             ],
             tripRows(regularTrips),
           ),
+          pw.SizedBox(height: 6),
+          _pdfTable(
+            const ['Итоги по моим сменам', 'Значение'],
+            [
+              ['Полных смен', '${stats.fullDays}'],
+              ['Неполных смен', '${stats.partialDays}'],
+              ['Всего смен', '${stats.regularCount}'],
+              ['Общая сумма', _money(stats.regularAmount)],
+            ],
+          ),
+        ],
         pw.SizedBox(height: 16),
         _sectionTitle('Дополнительные смены'),
         if (extraTrips.isEmpty)
           _emptyText('Дополнительных смен за месяц нет.')
-        else
+        else ...[
           _pdfTable(
             const [
               'Дата',
@@ -301,6 +314,15 @@ class MonthlyReportExportService {
             ],
             tripRows(extraTrips),
           ),
+          pw.SizedBox(height: 6),
+          _pdfTable(
+            const ['Итоги по доп. сменам', 'Значение'],
+            [
+              ['Всего доп. смен', '${stats.extraCount}'],
+              ['Общая сумма', _money(stats.extraTotalAmount)],
+            ],
+          ),
+        ],
         pw.SizedBox(height: 20),
       ]);
     }
@@ -451,7 +473,7 @@ class MonthlyReportExportService {
           '${stats.regularCount} • ${_money(stats.regularAmount)}',
         ],
         ['Полных смен (утро + вечер)', '${stats.fullDays}'],
-        ['Неполных дней', '${stats.partialDays}'],
+        ['Неполных смен', '${stats.partialDays}'],
         [
           'Утренние смены',
           '${stats.morningCount} • ${_money(stats.morningAmount)}',
@@ -591,7 +613,7 @@ class MonthlyReportExportService {
       summary.appendRow([TextCellValue('Показатель'), TextCellValue('Количество'), TextCellValue('Сумма')]);
       if (options.summaryRegularTrips) summary.appendRow([TextCellValue('Мои смены — всего'), IntCellValue(stats.regularCount), DoubleCellValue(stats.regularAmount)]);
       if (options.summaryRegularTrips) summary.appendRow([TextCellValue('Полные смены (утро + вечер)'), IntCellValue(stats.fullDays), TextCellValue('')]);
-      if (options.summaryRegularTrips) summary.appendRow([TextCellValue('Неполные дни'), IntCellValue(stats.partialDays), TextCellValue('')]);
+      if (options.summaryRegularTrips) summary.appendRow([TextCellValue('Неполные смены'), IntCellValue(stats.partialDays), TextCellValue('')]);
       if (options.summaryRegularTrips) summary.appendRow([TextCellValue('Утренние смены'), IntCellValue(stats.morningCount), DoubleCellValue(stats.morningAmount)]);
       if (options.summaryRegularTrips) summary.appendRow([TextCellValue('Вечерние смены'), IntCellValue(stats.eveningCount), DoubleCellValue(stats.eveningAmount)]);
       if (options.summaryExtraTrips) summary.appendRow([TextCellValue('Дополнительные смены — всего'), IntCellValue(stats.extraCount), DoubleCellValue(stats.extraTotalAmount)]);
@@ -645,14 +667,51 @@ class MonthlyReportExportService {
         }
       }
 
+      final regularSheet = excel['Мои смены'];
       fillTripSheet(
-        excel['Мои смены'],
+        regularSheet,
         data.trips.where((trip) => trip['type'] != 'extra'),
       );
+      regularSheet.appendRow([TextCellValue('')]);
+      regularSheet.appendRow([
+        TextCellValue('ИТОГИ ПО МОИМ СМЕНАМ'),
+        TextCellValue(''),
+      ]);
+      regularSheet.appendRow([
+        TextCellValue('Полных смен'),
+        IntCellValue(stats.fullDays),
+      ]);
+      regularSheet.appendRow([
+        TextCellValue('Неполных смен'),
+        IntCellValue(stats.partialDays),
+      ]);
+      regularSheet.appendRow([
+        TextCellValue('Всего смен'),
+        IntCellValue(stats.regularCount),
+      ]);
+      regularSheet.appendRow([
+        TextCellValue('Общая сумма'),
+        DoubleCellValue(stats.regularAmount),
+      ]);
+
+      final extraSheet = excel['Доп. смены'];
       fillTripSheet(
-        excel['Доп. смены'],
+        extraSheet,
         data.trips.where((trip) => trip['type'] == 'extra'),
       );
+      extraSheet.appendRow([TextCellValue('')]);
+      extraSheet.appendRow([
+        TextCellValue('ИТОГИ ПО ДОП. СМЕНАМ'),
+        TextCellValue(''),
+      ]);
+      extraSheet.appendRow([
+        TextCellValue('Всего доп. смен'),
+        IntCellValue(stats.extraCount),
+      ]);
+      extraSheet.appendRow([
+        TextCellValue('Общая сумма'),
+        DoubleCellValue(stats.extraTotalAmount),
+      ]);
     }
 
     if (options.orders) {
@@ -779,6 +838,7 @@ class MonthlyReportExportService {
   Future<void> shareExcel(
     DateTime month, {
     MonthlyExportOptions options = const MonthlyExportOptions(),
+    Rect? sharePositionOrigin,
   }) async {
     final bytes = await buildExcel(month, options: options);
     final fileName = 'Сводка_${_monthNames[month.month - 1]}_${month.year}.xlsx';
@@ -791,8 +851,9 @@ class MonthlyReportExportService {
     }
 
     await Share.shareXFiles(
-      [XFile.fromData(bytes, mimeType: mimeType)],
+      [XFile.fromData(bytes, mimeType: mimeType, name: fileName)],
       fileNameOverrides: [fileName],
+      sharePositionOrigin: sharePositionOrigin,
     );
   }
 }
@@ -842,7 +903,7 @@ class _TripStats {
   final double extraWaitHours;
   final double extraWaitAmount;
 
-  int get regularCount => morningCount + eveningCount;
+  int get regularCount => fullDays + partialDays;
   double get regularAmount => morningAmount + eveningAmount;
   double get extraTotalAmount => extraBaseAmount + extraWaitAmount;
 }

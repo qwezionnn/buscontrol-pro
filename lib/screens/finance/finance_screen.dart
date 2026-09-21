@@ -583,8 +583,23 @@ class _FinanceScreenState extends State<FinanceScreen> {
 
   Future<void> _exportExcel() async {
     final options = await _chooseExportOptions();
-    if (options == null) return;
-    await _run(() => _export.shareExcel(_month, options: options));
+    if (options == null || !mounted) return;
+
+    final size = MediaQuery.sizeOf(context);
+    final sharePositionOrigin = Rect.fromLTWH(
+      size.width / 2,
+      size.height / 2,
+      1,
+      1,
+    );
+
+    await _run(
+      () => _export.shareExcel(
+        _month,
+        options: options,
+        sharePositionOrigin: sharePositionOrigin,
+      ),
+    );
   }
 
   Widget _metric({
