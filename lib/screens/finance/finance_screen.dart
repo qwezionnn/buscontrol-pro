@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
+import '../../database/database_helper.dart';
 import '../../models/app_settings.dart';
 import '../../repositories/financial_assistant_repository.dart';
 import '../../repositories/report_repository.dart';
@@ -420,19 +423,178 @@ class _FinanceScreenState extends State<FinanceScreen> {
 
 
   Future<MonthlyExportOptions?> _chooseExportOptions() async {
-    var summary = true;
-    var trips = true;
-    var orders = true;
-    var fuel = true;
-    var expenses = true;
-    var repairs = true;
-    var mileage = true;
-    var summaryRegularTrips = true;
-    var summaryExtraTrips = true;
-    var summaryOrders = true;
-    var summaryFuel = true;
-    var summaryExpenses = true;
-    var summaryMileage = true;
+    final db = DatabaseHelper.instance;
+    Map<String, dynamic> saved = const {};
+    try {
+      final raw = await db.getSetting('flex_export_options_v1');
+      if (raw != null && raw.isNotEmpty) {
+        saved = jsonDecode(raw) as Map<String, dynamic>;
+      }
+    } catch (_) {}
+
+    bool v(String key, [bool fallback = true]) =>
+        saved[key] is bool ? saved[key] as bool : fallback;
+
+    var summary = v('summary');
+    var trips = v('trips');
+    var orders = v('orders');
+    var fuel = v('fuel');
+    var expenses = v('expenses');
+    var repairs = v('repairs');
+    var mileage = v('mileage');
+
+    var summaryRegularTrips = v('summaryRegularTrips');
+    var summaryRegularTripsTotal = v('summaryRegularTripsTotal');
+    var summaryRegularTripsFull = v('summaryRegularTripsFull');
+    var summaryRegularTripsPartial = v('summaryRegularTripsPartial');
+    var summaryRegularTripsMorning = v('summaryRegularTripsMorning');
+    var summaryRegularTripsEvening = v('summaryRegularTripsEvening');
+
+    var summaryExtraTrips = v('summaryExtraTrips');
+    var summaryExtraTripsTotal = v('summaryExtraTripsTotal');
+    var summaryExtraTripsWait = v('summaryExtraTripsWait');
+
+    var summaryOrders = v('summaryOrders');
+    var summaryOrdersRevenue = v('summaryOrdersRevenue');
+    var summaryOrderVehicle = v('summaryOrderVehicle');
+    var summaryOrderCredit = v('summaryOrderCredit');
+    var summaryOrderReserve = v('summaryOrderReserve');
+    var summaryOrderPersonal = v('summaryOrderPersonal');
+
+    var summaryTripDistribution = v('summaryTripDistribution');
+    var summaryTripVehicle = v('summaryTripVehicle');
+    var summaryTripCredit = v('summaryTripCredit');
+    var summaryTripReserve = v('summaryTripReserve');
+    var summaryTripPersonal = v('summaryTripPersonal');
+
+    var summaryPersonal = v('summaryPersonal');
+    var summaryPersonalTrips = v('summaryPersonalTrips');
+    var summaryPersonalOrders = v('summaryPersonalOrders');
+    var summaryPersonalTotal = v('summaryPersonalTotal');
+
+    var summaryFuel = v('summaryFuel');
+    var summaryFuelLiters = v('summaryFuelLiters');
+    var summaryFuelCost = v('summaryFuelCost');
+    var summaryFuelAverage = v('summaryFuelAverage');
+
+    var summaryExpenses = v('summaryExpenses');
+    var summaryExpensesTotal = v('summaryExpensesTotal');
+    var summaryExpenseParts = v('summaryExpenseParts');
+    var summaryExpenseRepairs = v('summaryExpenseRepairs');
+    var summaryExpenseOther = v('summaryExpenseOther');
+
+    var summaryMileage = v('summaryMileage');
+    var summaryMileageDistance = v('summaryMileageDistance');
+
+    var tripsRegular = v('tripsRegular');
+    var tripsExtra = v('tripsExtra');
+
+    var fuelShowLiters = v('fuelShowLiters');
+    var fuelShowCost = v('fuelShowCost');
+    var fuelShowMileage = v('fuelShowMileage');
+    var fuelShowComments = v('fuelShowComments');
+
+    MonthlyExportOptions buildOptions() => MonthlyExportOptions(
+          summary: summary,
+          trips: trips,
+          orders: orders,
+          fuel: fuel,
+          expenses: expenses,
+          repairs: repairs,
+          mileage: mileage,
+          summaryRegularTrips: summaryRegularTrips,
+          summaryRegularTripsTotal: summaryRegularTripsTotal,
+          summaryRegularTripsFull: summaryRegularTripsFull,
+          summaryRegularTripsPartial: summaryRegularTripsPartial,
+          summaryRegularTripsMorning: summaryRegularTripsMorning,
+          summaryRegularTripsEvening: summaryRegularTripsEvening,
+          summaryExtraTrips: summaryExtraTrips,
+          summaryExtraTripsTotal: summaryExtraTripsTotal,
+          summaryExtraTripsWait: summaryExtraTripsWait,
+          summaryOrders: summaryOrders,
+          summaryOrdersRevenue: summaryOrdersRevenue,
+          summaryOrderVehicle: summaryOrderVehicle,
+          summaryOrderCredit: summaryOrderCredit,
+          summaryOrderReserve: summaryOrderReserve,
+          summaryOrderPersonal: summaryOrderPersonal,
+          summaryTripDistribution: summaryTripDistribution,
+          summaryTripVehicle: summaryTripVehicle,
+          summaryTripCredit: summaryTripCredit,
+          summaryTripReserve: summaryTripReserve,
+          summaryTripPersonal: summaryTripPersonal,
+          summaryPersonal: summaryPersonal,
+          summaryPersonalTrips: summaryPersonalTrips,
+          summaryPersonalOrders: summaryPersonalOrders,
+          summaryPersonalTotal: summaryPersonalTotal,
+          summaryFuel: summaryFuel,
+          summaryFuelLiters: summaryFuelLiters,
+          summaryFuelCost: summaryFuelCost,
+          summaryFuelAverage: summaryFuelAverage,
+          summaryExpenses: summaryExpenses,
+          summaryExpensesTotal: summaryExpensesTotal,
+          summaryExpenseParts: summaryExpenseParts,
+          summaryExpenseRepairs: summaryExpenseRepairs,
+          summaryExpenseOther: summaryExpenseOther,
+          summaryMileage: summaryMileage,
+          summaryMileageDistance: summaryMileageDistance,
+          tripsRegular: tripsRegular,
+          tripsExtra: tripsExtra,
+          fuelShowLiters: fuelShowLiters,
+          fuelShowCost: fuelShowCost,
+          fuelShowMileage: fuelShowMileage,
+          fuelShowComments: fuelShowComments,
+        );
+
+    Map<String, bool> optionMap() => {
+          'summary': summary,
+          'trips': trips,
+          'orders': orders,
+          'fuel': fuel,
+          'expenses': expenses,
+          'repairs': repairs,
+          'mileage': mileage,
+          'summaryRegularTrips': summaryRegularTrips,
+          'summaryRegularTripsTotal': summaryRegularTripsTotal,
+          'summaryRegularTripsFull': summaryRegularTripsFull,
+          'summaryRegularTripsPartial': summaryRegularTripsPartial,
+          'summaryRegularTripsMorning': summaryRegularTripsMorning,
+          'summaryRegularTripsEvening': summaryRegularTripsEvening,
+          'summaryExtraTrips': summaryExtraTrips,
+          'summaryExtraTripsTotal': summaryExtraTripsTotal,
+          'summaryExtraTripsWait': summaryExtraTripsWait,
+          'summaryOrders': summaryOrders,
+          'summaryOrdersRevenue': summaryOrdersRevenue,
+          'summaryOrderVehicle': summaryOrderVehicle,
+          'summaryOrderCredit': summaryOrderCredit,
+          'summaryOrderReserve': summaryOrderReserve,
+          'summaryOrderPersonal': summaryOrderPersonal,
+          'summaryTripDistribution': summaryTripDistribution,
+          'summaryTripVehicle': summaryTripVehicle,
+          'summaryTripCredit': summaryTripCredit,
+          'summaryTripReserve': summaryTripReserve,
+          'summaryTripPersonal': summaryTripPersonal,
+          'summaryPersonal': summaryPersonal,
+          'summaryPersonalTrips': summaryPersonalTrips,
+          'summaryPersonalOrders': summaryPersonalOrders,
+          'summaryPersonalTotal': summaryPersonalTotal,
+          'summaryFuel': summaryFuel,
+          'summaryFuelLiters': summaryFuelLiters,
+          'summaryFuelCost': summaryFuelCost,
+          'summaryFuelAverage': summaryFuelAverage,
+          'summaryExpenses': summaryExpenses,
+          'summaryExpensesTotal': summaryExpensesTotal,
+          'summaryExpenseParts': summaryExpenseParts,
+          'summaryExpenseRepairs': summaryExpenseRepairs,
+          'summaryExpenseOther': summaryExpenseOther,
+          'summaryMileage': summaryMileage,
+          'summaryMileageDistance': summaryMileageDistance,
+          'tripsRegular': tripsRegular,
+          'tripsExtra': tripsExtra,
+          'fuelShowLiters': fuelShowLiters,
+          'fuelShowCost': fuelShowCost,
+          'fuelShowMileage': fuelShowMileage,
+          'fuelShowComments': fuelShowComments,
+        };
 
     return showDialog<MonthlyExportOptions>(
       context: context,
@@ -440,92 +602,242 @@ class _FinanceScreenState extends State<FinanceScreen> {
         builder: (dialogContext, setLocal) {
           final hasAny =
               summary || trips || orders || fuel || expenses || repairs || mileage;
+
+          Widget subTile({
+            required bool value,
+            required String title,
+            required ValueChanged<bool?> onChanged,
+          }) => Padding(
+                padding: const EdgeInsets.only(left: 28),
+                child: CheckboxListTile(
+                  value: value,
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(title),
+                  onChanged: onChanged,
+                ),
+              );
+
           return AlertDialog(
-            title: const Text('Что добавить в сводку?'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CheckboxListTile(
-                    value: summary,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Общая сводка'),
-                    onChanged: (v) => setLocal(() => summary = v ?? false),
-                  ),
-                  if (summary)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 24),
-                      child: Column(children: [
-                        CheckboxListTile(
-                          value: summaryRegularTrips,
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Мои смены (утро / вечер)'),
-                          onChanged: (v) => setLocal(
-                            () => summaryRegularTrips = v ?? false,
-                          ),
-                        ),
-                        CheckboxListTile(
-                          value: summaryExtraTrips,
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Дополнительные смены'),
-                          onChanged: (v) => setLocal(
-                            () => summaryExtraTrips = v ?? false,
-                          ),
-                        ),
-                        CheckboxListTile(value: summaryOrders, dense: true, contentPadding: EdgeInsets.zero, title: const Text('Заказы'), onChanged: (v) => setLocal(() => summaryOrders = v ?? false)),
-                        CheckboxListTile(value: summaryFuel, dense: true, contentPadding: EdgeInsets.zero, title: const Text('Топливо'), onChanged: (v) => setLocal(() => summaryFuel = v ?? false)),
-                        CheckboxListTile(value: summaryExpenses, dense: true, contentPadding: EdgeInsets.zero, title: const Text('Другие расходы'), onChanged: (v) => setLocal(() => summaryExpenses = v ?? false)),
-                        CheckboxListTile(value: summaryMileage, dense: true, contentPadding: EdgeInsets.zero, title: const Text('Пробег'), onChanged: (v) => setLocal(() => summaryMileage = v ?? false)),
-                      ]),
+            title: const Text('Настройка экспорта'),
+            content: SizedBox(
+              width: 520,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Общая сводка',
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                  CheckboxListTile(
-                    value: trips,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Рейсы'),
-                    subtitle: const Text(
-                      'Утро, вечер, полные/неполные, доп. рейсы и ожидание',
+                    CheckboxListTile(
+                      value: summary,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Добавить общую сводку'),
+                      onChanged: (x) => setLocal(() => summary = x ?? false),
                     ),
-                    onChanged: (v) => setLocal(() => trips = v ?? false),
-                  ),
-                  CheckboxListTile(
-                    value: orders,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Заказы'),
-                    onChanged: (v) => setLocal(() => orders = v ?? false),
-                  ),
-                  CheckboxListTile(
-                    value: fuel,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Топливо'),
-                    onChanged: (v) => setLocal(() => fuel = v ?? false),
-                  ),
-                  CheckboxListTile(
-                    value: expenses,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Расходы / запчасти'),
-                    onChanged: (v) => setLocal(() => expenses = v ?? false),
-                  ),
-                  CheckboxListTile(
-                    value: repairs,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Ремонты'),
-                    onChanged: (v) => setLocal(() => repairs = v ?? false),
-                  ),
-                  CheckboxListTile(
-                    value: mileage,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Пробег'),
-                    onChanged: (v) => setLocal(() => mileage = v ?? false),
-                  ),
-                ],
+                    if (summary) ...[
+                      CheckboxListTile(
+                        value: summaryRegularTrips,
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Мои смены (утро / вечер)'),
+                        onChanged: (x) => setLocal(() {
+                          summaryRegularTrips = x ?? false;
+                          summaryRegularTripsTotal = summaryRegularTrips;
+                          summaryRegularTripsFull = summaryRegularTrips;
+                          summaryRegularTripsPartial = summaryRegularTrips;
+                          summaryRegularTripsMorning = summaryRegularTrips;
+                          summaryRegularTripsEvening = summaryRegularTrips;
+                        }),
+                      ),
+                      if (summaryRegularTrips) ...[
+                        subTile(value: summaryRegularTripsTotal, title: 'Всего смен и общая сумма', onChanged: (x) => setLocal(() => summaryRegularTripsTotal = x ?? false)),
+                        subTile(value: summaryRegularTripsFull, title: 'Полные смены', onChanged: (x) => setLocal(() => summaryRegularTripsFull = x ?? false)),
+                        subTile(value: summaryRegularTripsPartial, title: 'Неполные смены', onChanged: (x) => setLocal(() => summaryRegularTripsPartial = x ?? false)),
+                        subTile(value: summaryRegularTripsMorning, title: 'Утренние смены', onChanged: (x) => setLocal(() => summaryRegularTripsMorning = x ?? false)),
+                        subTile(value: summaryRegularTripsEvening, title: 'Вечерние смены', onChanged: (x) => setLocal(() => summaryRegularTripsEvening = x ?? false)),
+                      ],
+                      CheckboxListTile(
+                        value: summaryExtraTrips,
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Дополнительные смены'),
+                        onChanged: (x) => setLocal(() {
+                          summaryExtraTrips = x ?? false;
+                          summaryExtraTripsTotal = summaryExtraTrips;
+                          summaryExtraTripsWait = summaryExtraTrips;
+                        }),
+                      ),
+                      if (summaryExtraTrips) ...[
+                        subTile(value: summaryExtraTripsTotal, title: 'Количество и общая сумма', onChanged: (x) => setLocal(() => summaryExtraTripsTotal = x ?? false)),
+                        subTile(value: summaryExtraTripsWait, title: 'Ожидание и сумма ожидания', onChanged: (x) => setLocal(() => summaryExtraTripsWait = x ?? false)),
+                      ],
+                      CheckboxListTile(
+                        value: summaryOrders,
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Заказы'),
+                        onChanged: (x) => setLocal(() {
+                          summaryOrders = x ?? false;
+                          summaryOrdersRevenue = summaryOrders;
+                          summaryOrderVehicle = summaryOrders;
+                          summaryOrderCredit = summaryOrders;
+                          summaryOrderReserve = summaryOrders;
+                          summaryOrderPersonal = summaryOrders;
+                        }),
+                      ),
+                      if (summaryOrders) ...[
+                        subTile(value: summaryOrdersRevenue, title: 'Общая выручка', onChanged: (x) => setLocal(() => summaryOrdersRevenue = x ?? false)),
+                        subTile(value: summaryOrderVehicle, title: 'Распределено на автобус', onChanged: (x) => setLocal(() => summaryOrderVehicle = x ?? false)),
+                        subTile(value: summaryOrderCredit, title: 'Распределено на кредит', onChanged: (x) => setLocal(() => summaryOrderCredit = x ?? false)),
+                        subTile(value: summaryOrderReserve, title: 'Распределено в заначку', onChanged: (x) => setLocal(() => summaryOrderReserve = x ?? false)),
+                        subTile(value: summaryOrderPersonal, title: 'Оставлено себе', onChanged: (x) => setLocal(() => summaryOrderPersonal = x ?? false)),
+                      ],
+                      CheckboxListTile(
+                        value: summaryTripDistribution,
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Распределение выплаты за рейсы'),
+                        onChanged: (x) => setLocal(() {
+                          summaryTripDistribution = x ?? false;
+                          summaryTripVehicle = summaryTripDistribution;
+                          summaryTripCredit = summaryTripDistribution;
+                          summaryTripReserve = summaryTripDistribution;
+                          summaryTripPersonal = summaryTripDistribution;
+                        }),
+                      ),
+                      if (summaryTripDistribution) ...[
+                        subTile(value: summaryTripVehicle, title: 'На автобус', onChanged: (x) => setLocal(() => summaryTripVehicle = x ?? false)),
+                        subTile(value: summaryTripCredit, title: 'На кредит', onChanged: (x) => setLocal(() => summaryTripCredit = x ?? false)),
+                        subTile(value: summaryTripReserve, title: 'В заначку', onChanged: (x) => setLocal(() => summaryTripReserve = x ?? false)),
+                        subTile(value: summaryTripPersonal, title: 'Себе', onChanged: (x) => setLocal(() => summaryTripPersonal = x ?? false)),
+                      ],
+                      CheckboxListTile(
+                        value: summaryPersonal,
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Заработано себе'),
+                        onChanged: (x) => setLocal(() {
+                          summaryPersonal = x ?? false;
+                          summaryPersonalTrips = summaryPersonal;
+                          summaryPersonalOrders = summaryPersonal;
+                          summaryPersonalTotal = summaryPersonal;
+                        }),
+                      ),
+                      if (summaryPersonal) ...[
+                        subTile(value: summaryPersonalTrips, title: 'Со смен', onChanged: (x) => setLocal(() => summaryPersonalTrips = x ?? false)),
+                        subTile(value: summaryPersonalOrders, title: 'С заказов', onChanged: (x) => setLocal(() => summaryPersonalOrders = x ?? false)),
+                        subTile(value: summaryPersonalTotal, title: 'Всего себе', onChanged: (x) => setLocal(() => summaryPersonalTotal = x ?? false)),
+                      ],
+                      CheckboxListTile(
+                        value: summaryFuel,
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Топливо'),
+                        onChanged: (x) => setLocal(() {
+                          summaryFuel = x ?? false;
+                          summaryFuelLiters = summaryFuel;
+                          summaryFuelCost = summaryFuel;
+                          summaryFuelAverage = summaryFuel;
+                        }),
+                      ),
+                      if (summaryFuel) ...[
+                        subTile(value: summaryFuelLiters, title: 'Заправлено литров', onChanged: (x) => setLocal(() => summaryFuelLiters = x ?? false)),
+                        subTile(value: summaryFuelCost, title: 'Потрачено на топливо', onChanged: (x) => setLocal(() => summaryFuelCost = x ?? false)),
+                        subTile(value: summaryFuelAverage, title: 'Средний расход, л/100 км', onChanged: (x) => setLocal(() => summaryFuelAverage = x ?? false)),
+                      ],
+                      CheckboxListTile(
+                        value: summaryExpenses,
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Расходы'),
+                        onChanged: (x) => setLocal(() {
+                          summaryExpenses = x ?? false;
+                          summaryExpenseParts = summaryExpenses;
+                          summaryExpenseRepairs = summaryExpenses;
+                          summaryExpenseOther = summaryExpenses;
+                          summaryExpensesTotal = summaryExpenses;
+                        }),
+                      ),
+                      if (summaryExpenses) ...[
+                        subTile(value: summaryExpenseParts, title: 'Запчасти', onChanged: (x) => setLocal(() => summaryExpenseParts = x ?? false)),
+                        subTile(value: summaryExpenseRepairs, title: 'Ремонты / ТО', onChanged: (x) => setLocal(() => summaryExpenseRepairs = x ?? false)),
+                        subTile(value: summaryExpenseOther, title: 'Прочие расходы', onChanged: (x) => setLocal(() => summaryExpenseOther = x ?? false)),
+                        subTile(value: summaryExpensesTotal, title: 'Всего расходов', onChanged: (x) => setLocal(() => summaryExpensesTotal = x ?? false)),
+                      ],
+                      CheckboxListTile(
+                        value: summaryMileage,
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Пробег'),
+                        onChanged: (x) => setLocal(() {
+                          summaryMileage = x ?? false;
+                          summaryMileageDistance = summaryMileage;
+                        }),
+                      ),
+                      if (summaryMileage)
+                        subTile(value: summaryMileageDistance, title: 'Общий пробег за месяц', onChanged: (x) => setLocal(() => summaryMileageDistance = x ?? false)),
+                    ],
+                    const Divider(height: 28),
+                    const Text(
+                      'Подробные таблицы',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    CheckboxListTile(
+                      value: trips,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Рейсы'),
+                      onChanged: (x) => setLocal(() {
+                        trips = x ?? false;
+                        tripsRegular = trips;
+                        tripsExtra = trips;
+                      }),
+                    ),
+                    if (trips) ...[
+                      subTile(value: tripsRegular, title: 'Мои смены', onChanged: (x) => setLocal(() => tripsRegular = x ?? false)),
+                      subTile(value: tripsExtra, title: 'Доп. смены', onChanged: (x) => setLocal(() => tripsExtra = x ?? false)),
+                    ],
+                    CheckboxListTile(value: orders, contentPadding: EdgeInsets.zero, title: const Text('Заказы'), onChanged: (x) => setLocal(() => orders = x ?? false)),
+                    CheckboxListTile(
+                      value: fuel,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Топливо'),
+                      onChanged: (x) => setLocal(() {
+                        fuel = x ?? false;
+                        fuelShowLiters = fuel;
+                        fuelShowCost = fuel;
+                        fuelShowMileage = fuel;
+                        fuelShowComments = fuel;
+                      }),
+                    ),
+                    if (fuel) ...[
+                      subTile(value: fuelShowLiters, title: 'Литры', onChanged: (x) => setLocal(() => fuelShowLiters = x ?? false)),
+                      subTile(value: fuelShowCost, title: 'Цена и сумма', onChanged: (x) => setLocal(() => fuelShowCost = x ?? false)),
+                      subTile(value: fuelShowMileage, title: 'Пробег при заправке', onChanged: (x) => setLocal(() => fuelShowMileage = x ?? false)),
+                      subTile(value: fuelShowComments, title: 'Комментарии', onChanged: (x) => setLocal(() => fuelShowComments = x ?? false)),
+                    ],
+                    CheckboxListTile(value: expenses, contentPadding: EdgeInsets.zero, title: const Text('Расходы / запчасти'), onChanged: (x) => setLocal(() => expenses = x ?? false)),
+                    CheckboxListTile(value: repairs, contentPadding: EdgeInsets.zero, title: const Text('Ремонты'), onChanged: (x) => setLocal(() => repairs = x ?? false)),
+                    CheckboxListTile(value: mileage, contentPadding: EdgeInsets.zero, title: const Text('Пробег'), onChanged: (x) => setLocal(() => mileage = x ?? false)),
+                  ],
+                ),
               ),
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Отмена'),
+                onPressed: () => setLocal(() {
+                  summary = false;
+                  trips = false;
+                  orders = false;
+                  fuel = false;
+                  expenses = false;
+                  repairs = false;
+                  mileage = false;
+                }),
+                child: const Text('Снять всё'),
               ),
               TextButton(
                 onPressed: () => setLocal(() {
@@ -537,34 +849,65 @@ class _FinanceScreenState extends State<FinanceScreen> {
                   repairs = true;
                   mileage = true;
                   summaryRegularTrips = true;
+                  summaryRegularTripsTotal = true;
+                  summaryRegularTripsFull = true;
+                  summaryRegularTripsPartial = true;
+                  summaryRegularTripsMorning = true;
+                  summaryRegularTripsEvening = true;
                   summaryExtraTrips = true;
+                  summaryExtraTripsTotal = true;
+                  summaryExtraTripsWait = true;
                   summaryOrders = true;
+                  summaryOrdersRevenue = true;
+                  summaryOrderVehicle = true;
+                  summaryOrderCredit = true;
+                  summaryOrderReserve = true;
+                  summaryOrderPersonal = true;
+                  summaryTripDistribution = true;
+                  summaryTripVehicle = true;
+                  summaryTripCredit = true;
+                  summaryTripReserve = true;
+                  summaryTripPersonal = true;
+                  summaryPersonal = true;
+                  summaryPersonalTrips = true;
+                  summaryPersonalOrders = true;
+                  summaryPersonalTotal = true;
                   summaryFuel = true;
+                  summaryFuelLiters = true;
+                  summaryFuelCost = true;
+                  summaryFuelAverage = true;
                   summaryExpenses = true;
+                  summaryExpensesTotal = true;
+                  summaryExpenseParts = true;
+                  summaryExpenseRepairs = true;
+                  summaryExpenseOther = true;
                   summaryMileage = true;
+                  summaryMileageDistance = true;
+                  tripsRegular = true;
+                  tripsExtra = true;
+                  fuelShowLiters = true;
+                  fuelShowCost = true;
+                  fuelShowMileage = true;
+                  fuelShowComments = true;
                 }),
                 child: const Text('Выбрать всё'),
               ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Отмена'),
+              ),
               FilledButton(
                 onPressed: hasAny
-                    ? () => Navigator.pop(
-                          dialogContext,
-                          MonthlyExportOptions(
-                            summary: summary,
-                            trips: trips,
-                            orders: orders,
-                            fuel: fuel,
-                            expenses: expenses,
-                            repairs: repairs,
-                            mileage: mileage,
-                            summaryRegularTrips: summaryRegularTrips,
-                            summaryExtraTrips: summaryExtraTrips,
-                            summaryOrders: summaryOrders,
-                            summaryFuel: summaryFuel,
-                            summaryExpenses: summaryExpenses,
-                            summaryMileage: summaryMileage,
-                          ),
-                        )
+                    ? () async {
+                        final result = buildOptions();
+                        await db.setSetting(
+                          'flex_export_options_v1',
+                          jsonEncode(optionMap()),
+                        );
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext, result);
+                        }
+                      }
                     : null,
                 child: const Text('Продолжить'),
               ),
