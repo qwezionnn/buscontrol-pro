@@ -42,6 +42,7 @@ class ExpenseRepository {
       description: expense.description,
       amount: expense.amount,
       paymentAccount: expense.paymentAccount,
+      periodMonth: expense.periodMonth,
     );
   }
 
@@ -81,6 +82,7 @@ class ExpenseRepository {
         'description': expense.description,
         'amount': expense.amount,
         'payment_account': expense.paymentAccount,
+        'period_month': expense.periodMonth,
       },
       where: 'id = ?',
       whereArgs: [id],

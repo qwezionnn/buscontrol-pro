@@ -1,17 +1,17 @@
-BusControl PRO — Flexible Export patch
+BusControl PRO — FINANCE/PERIOD UPDATE
 
-Что изменено:
-- Гибкий выбор общей сводки: блоки, пункты и подпункты.
-- Выбор подробных таблиц отдельно от общей сводки.
-- Последний набор галочек запоминается.
-- Доходы разделены на общую выручку и фактическое распределение.
-- Для заказов: выручка, получено/распределено, автобус, кредит, заначка, себе.
-- Для выплат предприятия: автобус, кредит, заначка, себе.
-- Отдельный блок "Заработано себе": со смен, с заказов, всего.
-- Топливо: литры, расходы на топливо и средний расход можно включать отдельно.
-- Расходы: запчасти, ремонты/ТО, прочие и всего можно включать отдельно.
-- В подробных таблицах добавлены итоги для заказов, топлива, расходов и ремонтов.
-- Мои смены и доп. смены сохранены в прежнем виде; у доп. смен нет лишнего столбца "Тип".
-- PDF-сводка сделана спокойнее: отдельные компактные смысловые блоки.
+Replace the included files by the same paths.
 
-Установка: распаковать в корень проекта с заменой файлов.
+Implemented:
+- home fuel has a separate work period and actual payment date;
+- DB migration v19 adds expenses.period_month and migrates old home-fuel rows when possible;
+- monthly fuel cost uses the work period instead of payment month;
+- PDF/Excel explicitly show reporting periods;
+- payments made this month for another fuel period are shown separately;
+- enterprise payout summary: accrued / received / outstanding;
+- bus cost per km;
+- distribution labels use plain text instead of arrow symbols;
+- PDF summary spacing reduced;
+- existing flexible export is preserved.
+
+Make a git commit/backup before replacement.

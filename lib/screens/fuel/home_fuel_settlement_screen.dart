@@ -125,6 +125,7 @@ class _HomeFuelSettlementScreenState
           description:
               'Расчёт домашнего топлива за $monthTitle — ${_number(_liters)} л',
           amount: _amount,
+          periodMonth: '${_month.year}-${_month.month.toString().padLeft(2, '0')}',
         ),
       );
 
@@ -183,7 +184,7 @@ class _HomeFuelSettlementScreenState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Заправлено дома за месяц',
+                            'Домашнее топливо за выбранный период',
                             style: TextStyle(fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(height: 8),
@@ -221,16 +222,17 @@ class _HomeFuelSettlementScreenState
             OutlinedButton.icon(
               onPressed: _selectExpenseDate,
               icon: const Icon(Icons.calendar_month),
-              label: Text('Дата списания: ${_visibleDate(_expenseDate)}'),
+              label: Text('Дата фактической оплаты: ${_visibleDate(_expenseDate)}'),
             ),
             const SizedBox(height: 16),
             const Card(
               child: Padding(
                 padding: EdgeInsets.all(14),
                 child: Text(
-                  'После сохранения эта сумма попадёт в расходы на топливо '
-                  'и уменьшит кошелёк автобуса. Литры уже были учтены в дни '
-                  'фактических домашних заправок.',
+                  'Период расхода и дата оплаты учитываются отдельно. '
+                  'Расход попадёт в сводку выбранного месяца, а деньги '
+                  'спишутся с кошелька автобуса в фактическую дату оплаты. '
+                  'Литры уже учтены в дни домашних заправок.',
                 ),
               ),
             ),

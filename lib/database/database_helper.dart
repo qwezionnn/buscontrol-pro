@@ -41,7 +41,7 @@ class DatabaseHelper {
 
     return openDatabase(
       path,
-      version: 18,
+      version: 19,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -96,6 +96,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 18) {
       await _upgradeToVersion18(db);
+    }
+    if (oldVersion < 19) {
+      await _upgradeToVersion19(db);
     }
     await _createTables(db);
     await _insertDefaultSettings(db);
@@ -213,7 +216,8 @@ class DatabaseHelper {
         category TEXT NOT NULL,
         description TEXT,
         amount REAL NOT NULL,
-        payment_account TEXT NOT NULL DEFAULT 'vehicle'
+        payment_account TEXT NOT NULL DEFAULT 'vehicle',
+        period_month TEXT
       )
     ''');
 
@@ -824,6 +828,39 @@ class DatabaseHelper {
         updated_at TEXT NOT NULL
       )
     ''');
+  }
+
+  Future<void> _upgradeToVersion19(Database db) async {
+    if (!await _hasColumn(db, 'expenses', 'period_month')) {
+      await db.execute('ALTER TABLE expenses ADD COLUMN period_month TEXT');
+    }
+    const months = <String>[
+      'январь','февраль','март','апрель','май','июнь',
+      'июль','август','сентябрь','октябрь','ноябрь','декабрь',
+    ];
+    final rows = await db.query('expenses',
+      columns: ['id','date','description','period_month'],
+      where: "category = 'Домашнее топливо'");
+    for (final row in rows) {
+      if ((row['period_month']?.toString() ?? '').isNotEmpty) continue;
+      final d=(row['description']?.toString() ?? '').toLowerCase();
+      final y=RegExp(r'\b(20\d{2})\b').firstMatch(d);
+      String? period;
+      if (y != null) {
+        for (var i=0;i<months.length;i++) {
+          if (d.contains(months[i])) {
+            period='${y.group(1)}-${(i+1).toString().padLeft(2,'0')}';
+            break;
+          }
+        }
+      }
+      final date=row['date']?.toString() ?? '';
+      period ??= date.length >= 7 ? date.substring(0,7) : null;
+      if (period != null) {
+        await db.update('expenses', {'period_month':period},
+          where:'id = ?', whereArgs:[row['id']]);
+      }
+    }
   }
 
   Future<int> getActiveVehicleId() async {
@@ -1725,6 +1762,7 @@ class DatabaseHelper {
     String? description,
     required double amount,
     String paymentAccount = 'vehicle',
+    String? periodMonth,
   }) async {
     final db = await database;
     final vehicleId = await getActiveVehicleId();
@@ -1736,6 +1774,7 @@ class DatabaseHelper {
       'description': description,
       'amount': amount,
       'payment_account': paymentAccount,
+      'period_month': periodMonth,
     });
     if (amount > 0 && (paymentAccount == 'personal' || paymentAccount == 'reserve')) {
       await db.insert('money_obligations', {'vehicle_id': vehicleId, 'kind': paymentAccount == 'personal' ? 'personal_reimbursement' : 'reserve_restore', 'amount': amount, 'remaining': amount, 'created_at': DateTime.now().toIso8601String(), 'note': description ?? category, 'closed': 0});
@@ -1766,6 +1805,22 @@ class DatabaseHelper {
       whereArgs: [vehicleId, from, to],
       orderBy: 'date ASC, time ASC',
     );
+  }
+
+  Future<List<Map<String, Object?>>> getHomeFuelExpensesForPeriod(String periodMonth) async {
+    final db = await database;
+    final vehicleId = await getActiveVehicleId();
+    return db.query('expenses',
+      where: "vehicle_id = ? AND category = 'Домашнее топливо' AND period_month = ?",
+      whereArgs: [vehicleId, periodMonth], orderBy: 'date ASC, time ASC, id ASC');
+  }
+
+  Future<List<Map<String, Object?>>> getHomeFuelPaymentsBetween(String from, String to) async {
+    final db = await database;
+    final vehicleId = await getActiveVehicleId();
+    return db.query('expenses',
+      where: "vehicle_id = ? AND category = 'Домашнее топливо' AND date BETWEEN ? AND ?",
+      whereArgs: [vehicleId, from, to], orderBy: 'date ASC, time ASC, id ASC');
   }
 
   Future<void> deleteExpense(int id) async {

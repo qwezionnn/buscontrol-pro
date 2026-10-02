@@ -7,6 +7,7 @@ class Expense {
     this.description,
     required this.amount,
     this.paymentAccount = 'vehicle',
+    this.periodMonth,
   });
 
   final int? id;
@@ -27,6 +28,7 @@ class Expense {
   /// Сумма расхода.
   final double amount;
   final String paymentAccount;
+  final String? periodMonth;
 
   Expense copyWith({
     int? id,
@@ -35,6 +37,8 @@ class Expense {
     String? category,
     String? description,
     double? amount,
+    String? paymentAccount,
+    String? periodMonth,
   }) {
     return Expense(
       id: id ?? this.id,
@@ -43,6 +47,8 @@ class Expense {
       category: category ?? this.category,
       description: description ?? this.description,
       amount: amount ?? this.amount,
+      paymentAccount: paymentAccount ?? this.paymentAccount,
+      periodMonth: periodMonth ?? this.periodMonth,
     );
   }
 
@@ -55,6 +61,7 @@ class Expense {
       'description': description,
       'amount': amount,
       'payment_account': paymentAccount,
+      'period_month': periodMonth,
     };
   }
 
@@ -67,6 +74,7 @@ class Expense {
       description: map['description']?.toString(),
       amount: (map['amount'] as num?)?.toDouble() ?? 0,
       paymentAccount: map['payment_account']?.toString() ?? 'vehicle',
+      periodMonth: map['period_month']?.toString(),
     );
   }
 

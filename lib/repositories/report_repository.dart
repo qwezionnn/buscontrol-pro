@@ -106,6 +106,8 @@ class ReportRepository {
     final orders = await _database.getOrdersBetween(from, to);
     final fuel = await _database.getFuelLogsBetween(from, to);
     final expenses = await _database.getExpensesBetween(from, to);
+    final periodMonth = '${month.year}-${month.month.toString().padLeft(2, '0')}';
+    final homeFuelForPeriod = await _database.getHomeFuelExpensesForPeriod(periodMonth);
     final logs = await _database.getDailyLogsBetween(from, to);
 
     final completedTrips =
@@ -132,12 +134,10 @@ class ReportRepository {
       0,
       (sum, row) => sum + ((row['liters'] as num?)?.toDouble() ?? 0),
     );
-    final homeFuelSettlements = expenses
-        .where((row) => row['category']?.toString() == 'Домашнее топливо')
-        .fold<double>(
-          0,
-          (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
-        );
+    final homeFuelSettlements = homeFuelForPeriod.fold<double>(
+      0,
+      (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
+    );
     final fuelCost = fuel.fold<double>(
           0,
           (sum, row) => sum + ((row['total'] as num?)?.toDouble() ?? 0),

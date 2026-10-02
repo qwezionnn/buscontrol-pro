@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:ui' show Rect;
 
 import 'package:flutter/foundation.dart';
@@ -158,6 +159,15 @@ class MonthlyReportExportService {
   String _monthTitle(DateTime month) =>
       '${_monthNames[month.month - 1]} ${month.year}';
 
+  String _periodTitle(String? value) {
+    if (value == null || value.length < 7) return 'не указан';
+    final parts = value.split('-');
+    final y = int.tryParse(parts[0]);
+    final m = parts.length > 1 ? int.tryParse(parts[1]) : null;
+    if (y == null || m == null || m < 1 || m > 12) return value;
+    return '${_monthNames[m - 1]} $y';
+  }
+
   String _formatDate(Object? value) {
     final text = value?.toString() ?? '';
     final parts = text.split('-');
@@ -270,6 +280,11 @@ class MonthlyReportExportService {
     final tripPayouts = (await _database.getTripPayouts())
         .where((row) => row['month']?.toString() == monthKey)
         .toList(growable: false);
+    final homeFuelForPeriod = await _database.getHomeFuelExpensesForPeriod(monthKey);
+    final homeFuelPaymentsInMonth = await _database.getHomeFuelPaymentsBetween(from, to);
+    final calculatedTripAccrued = completedTrips.fold<double>(0, (sum, row) => sum + _tripTotal(row));
+    final targetRaw = await _database.getSetting('trip_income_target_${vehicleId}_$monthKey');
+    final tripAccruedTarget = double.tryParse(targetRaw ?? '') ?? calculatedTripAccrued;
 
     return _MonthlyExportData(
       report: report,
@@ -281,6 +296,10 @@ class MonthlyReportExportService {
       mileage: mileage,
       orderPayments: orderPayments,
       tripPayouts: tripPayouts,
+      homeFuelForPeriod: homeFuelForPeriod,
+      homeFuelPaymentsInMonth: homeFuelPaymentsInMonth,
+      tripAccruedTarget: tripAccruedTarget,
+      monthKey: monthKey,
     );
   }
 
@@ -425,7 +444,7 @@ class MonthlyReportExportService {
 
     if (options.summary) {
       content.addAll([
-        _summaryCard(data.report, stats, finances, options),
+        _summaryCard(month, data, stats, finances, options),
         pw.SizedBox(height: 22),
       ]);
     }
@@ -610,6 +629,16 @@ class MonthlyReportExportService {
             ],
           ),
         ],
+        if (options.fuelShowCost && data.homeFuelForPeriod.isNotEmpty) ...[
+          pw.SizedBox(height: 6),
+          _pdfTable(
+            const ['Домашнее топливо', 'Сумма'],
+            data.homeFuelForPeriod.map((e) => [
+              'За ${_periodTitle(e['period_month']?.toString())}, оплачено ${_formatDate(e['date'])}',
+              _money(e['amount']),
+            ]).toList(),
+          ),
+        ],
         pw.SizedBox(height: 20),
       ]);
     }
@@ -620,7 +649,7 @@ class MonthlyReportExportService {
           _emptyText('Расходов за месяц нет.')
         else
           _pdfTable(
-            const ['Дата', 'Время', 'Категория', 'Описание', 'Сумма'],
+            const ['Дата оплаты', 'Время', 'Категория', 'Период', 'Описание', 'Сумма'],
             data.expenses
                 .map(
                   (expense) => [
@@ -724,11 +753,13 @@ class MonthlyReportExportService {
   }
 
   pw.Widget _summaryCard(
-    MonthReport report,
+    DateTime month,
+    _MonthlyExportData data,
     _TripStats stats,
     _FinancialStats finances,
     MonthlyExportOptions options,
   ) {
+    final report = data.report;
     final groups = <MapEntry<String, List<List<String>>>>[];
 
     final revenueRows = <List<String>>[];
@@ -753,17 +784,19 @@ class MonthlyReportExportService {
 
     final distributionRows = <List<String>>[];
     if (options.summaryTripDistribution) {
-      if (finances.tripGross > 0) distributionRows.add(['Выплата предприятия', _money(finances.tripGross)]);
-      if (options.summaryTripVehicle) distributionRows.add(['Со смен → Автобус', _money(finances.tripVehicle)]);
-      if (options.summaryTripCredit) distributionRows.add(['Со смен → Кредит', _money(finances.tripCredit)]);
-      if (options.summaryTripReserve) distributionRows.add(['Со смен → Заначка', _money(finances.tripReserve)]);
-      if (options.summaryTripPersonal) distributionRows.add(['Со смен → Себе', _money(finances.tripPersonal)]);
+      distributionRows.add(['Начислено предприятием за ${_monthTitle(month)}', _money(data.tripAccruedTarget)]);
+      distributionRows.add(['Получено по ${_monthTitle(month)}', _money(finances.tripGross)]);
+      distributionRows.add(['Осталось получить', _money(math.max(0.0, data.tripAccruedTarget - finances.tripGross))]);
+      if (options.summaryTripVehicle) distributionRows.add(['Со смен: Автобус', _money(finances.tripVehicle)]);
+      if (options.summaryTripCredit) distributionRows.add(['Со смен: Кредит', _money(finances.tripCredit)]);
+      if (options.summaryTripReserve) distributionRows.add(['Со смен: Заначка', _money(finances.tripReserve)]);
+      if (options.summaryTripPersonal) distributionRows.add(['Со смен: Себе', _money(finances.tripPersonal)]);
     }
     if (options.summaryOrders) {
-      if (options.summaryOrderVehicle) distributionRows.add(['С заказов → Автобус', _money(finances.orderVehicle)]);
-      if (options.summaryOrderCredit) distributionRows.add(['С заказов → Кредит', _money(finances.orderCredit)]);
-      if (options.summaryOrderReserve) distributionRows.add(['С заказов → Заначка', _money(finances.orderReserve)]);
-      if (options.summaryOrderPersonal) distributionRows.add(['С заказов → Себе', _money(finances.orderPersonal)]);
+      if (options.summaryOrderVehicle) distributionRows.add(['С заказов: Автобус', _money(finances.orderVehicle)]);
+      if (options.summaryOrderCredit) distributionRows.add(['С заказов: Кредит', _money(finances.orderCredit)]);
+      if (options.summaryOrderReserve) distributionRows.add(['С заказов: Заначка', _money(finances.orderReserve)]);
+      if (options.summaryOrderPersonal) distributionRows.add(['С заказов: Себе', _money(finances.orderPersonal)]);
       if (finances.orderGross > finances.orderPaid + 0.01) {
         distributionRows.add(['Заказы — ещё не получено/не распределено', _money(finances.orderGross - finances.orderPaid)]);
       }
@@ -785,8 +818,20 @@ class MonthlyReportExportService {
 
     final fuelRows = <List<String>>[];
     if (options.summaryFuel) {
-      if (options.summaryFuelLiters) fuelRows.add(['Заправлено', '${_number(report.fuelLiters)} л']);
-      if (options.summaryFuelCost) fuelRows.add(['Потрачено на топливо', _money(report.fuelCost)]);
+      if (options.summaryFuelLiters) fuelRows.add(['Заправлено за ${_monthTitle(month)}', '${_number(report.fuelLiters)} л']);
+      if (options.summaryFuelCost) {
+        fuelRows.add(['Расход топлива за ${_monthTitle(month)}', _money(report.fuelCost)]);
+        final paidOther = <String, double>{};
+        for (final payment in data.homeFuelPaymentsInMonth) {
+          final period = payment['period_month']?.toString();
+          if (period == null || period == data.monthKey) continue;
+          paidOther.update(period, (v) => v + ((payment['amount'] as num?)?.toDouble() ?? 0),
+              ifAbsent: () => (payment['amount'] as num?)?.toDouble() ?? 0);
+        }
+        for (final entry in paidOther.entries) {
+          fuelRows.add(['Оплачено в ${_monthTitle(month)} за ${_periodTitle(entry.key)}', _money(entry.value)]);
+        }
+      }
       if (options.summaryFuelAverage && report.approximateFuelPer100Km != null) {
         fuelRows.add(['Средний расход', '≈ ${report.approximateFuelPer100Km!.toStringAsFixed(1)} л/100 км']);
       }
@@ -798,7 +843,11 @@ class MonthlyReportExportService {
       if (options.summaryExpenseParts) expenseRows.add(['Запчасти', _money(finances.partsExpenses)]);
       if (options.summaryExpenseRepairs) expenseRows.add(['Ремонты / ТО', _money(finances.repairExpenses)]);
       if (options.summaryExpenseOther) expenseRows.add(['Прочие расходы', _money(finances.otherExpenses)]);
-      if (options.summaryExpensesTotal) expenseRows.add(['Всего расходов', _money(finances.totalExpenses(report.fuelCost))]);
+      final totalExpenses = finances.totalExpenses(report.fuelCost);
+      if (options.summaryExpensesTotal) expenseRows.add(['Всего расходов', _money(totalExpenses)]);
+      if (report.distance > 0) {
+        expenseRows.add(['Себестоимость 1 км', '${(totalExpenses / report.distance).toStringAsFixed(2)} ₽/км']);
+      }
     }
     if (expenseRows.isNotEmpty) groups.add(MapEntry('Расходы', expenseRows));
 
@@ -809,7 +858,7 @@ class MonthlyReportExportService {
       children: [
         for (var i = 0; i < groups.length; i++) ...[
           pw.Container(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             decoration: pw.BoxDecoration(
               color: PdfColors.grey100,
               borderRadius: pw.BorderRadius.circular(6),
@@ -831,7 +880,7 @@ class MonthlyReportExportService {
               ],
             ),
           ),
-          if (i != groups.length - 1) pw.SizedBox(height: 7),
+          if (i != groups.length - 1) pw.SizedBox(height: 5),
         ],
       ],
     );
@@ -933,17 +982,19 @@ class MonthlyReportExportService {
       if (options.summaryTripDistribution || options.summaryOrders) {
         title('РАСПРЕДЕЛЕНИЕ ДЕНЕГ');
         if (options.summaryTripDistribution) {
-          if (finances.tripGross > 0) moneyRow('Выплата предприятия', finances.tripGross);
-          if (options.summaryTripVehicle) moneyRow('Со смен → Автобус', finances.tripVehicle);
-          if (options.summaryTripCredit) moneyRow('Со смен → Кредит', finances.tripCredit);
-          if (options.summaryTripReserve) moneyRow('Со смен → Заначка', finances.tripReserve);
-          if (options.summaryTripPersonal) moneyRow('Со смен → Себе', finances.tripPersonal);
+          moneyRow('Начислено предприятием за ${_monthTitle(month)}', data.tripAccruedTarget);
+          moneyRow('Получено по ${_monthTitle(month)}', finances.tripGross);
+          moneyRow('Осталось получить', math.max(0.0, data.tripAccruedTarget - finances.tripGross));
+          if (options.summaryTripVehicle) moneyRow('Со смен: Автобус', finances.tripVehicle);
+          if (options.summaryTripCredit) moneyRow('Со смен: Кредит', finances.tripCredit);
+          if (options.summaryTripReserve) moneyRow('Со смен: Заначка', finances.tripReserve);
+          if (options.summaryTripPersonal) moneyRow('Со смен: Себе', finances.tripPersonal);
         }
         if (options.summaryOrders) {
-          if (options.summaryOrderVehicle) moneyRow('С заказов → Автобус', finances.orderVehicle);
-          if (options.summaryOrderCredit) moneyRow('С заказов → Кредит', finances.orderCredit);
-          if (options.summaryOrderReserve) moneyRow('С заказов → Заначка', finances.orderReserve);
-          if (options.summaryOrderPersonal) moneyRow('С заказов → Себе', finances.orderPersonal);
+          if (options.summaryOrderVehicle) moneyRow('С заказов: Автобус', finances.orderVehicle);
+          if (options.summaryOrderCredit) moneyRow('С заказов: Кредит', finances.orderCredit);
+          if (options.summaryOrderReserve) moneyRow('С заказов: Заначка', finances.orderReserve);
+          if (options.summaryOrderPersonal) moneyRow('С заказов: Себе', finances.orderPersonal);
         }
       }
 
@@ -958,8 +1009,20 @@ class MonthlyReportExportService {
 
       if (options.summaryFuel) {
         title('ТОПЛИВО');
-        if (options.summaryFuelLiters) countRow('Заправлено, л', data.report.fuelLiters);
-        if (options.summaryFuelCost) moneyRow('Потрачено на топливо', data.report.fuelCost);
+        if (options.summaryFuelLiters) countRow('Заправлено за ${_monthTitle(month)}, л', data.report.fuelLiters);
+        if (options.summaryFuelCost) {
+          moneyRow('Расход топлива за ${_monthTitle(month)}', data.report.fuelCost);
+          final paidOther = <String, double>{};
+          for (final payment in data.homeFuelPaymentsInMonth) {
+            final period = payment['period_month']?.toString();
+            if (period == null || period == data.monthKey) continue;
+            paidOther.update(period, (v) => v + ((payment['amount'] as num?)?.toDouble() ?? 0),
+                ifAbsent: () => (payment['amount'] as num?)?.toDouble() ?? 0);
+          }
+          for (final entry in paidOther.entries) {
+            moneyRow('Оплачено в ${_monthTitle(month)} за ${_periodTitle(entry.key)}', entry.value);
+          }
+        }
         if (options.summaryFuelAverage && data.report.approximateFuelPer100Km != null) countRow('Средний расход, л/100 км', data.report.approximateFuelPer100Km!);
       }
 
@@ -968,7 +1031,11 @@ class MonthlyReportExportService {
         if (options.summaryExpenseParts) moneyRow('Запчасти', finances.partsExpenses);
         if (options.summaryExpenseRepairs) moneyRow('Ремонты / ТО', finances.repairExpenses);
         if (options.summaryExpenseOther) moneyRow('Прочие расходы', finances.otherExpenses);
-        if (options.summaryExpensesTotal) moneyRow('Всего расходов', finances.totalExpenses(data.report.fuelCost));
+        final totalExpenses = finances.totalExpenses(data.report.fuelCost);
+        if (options.summaryExpensesTotal) moneyRow('Всего расходов', totalExpenses);
+        if (data.report.distance > 0) {
+          countRow('Себестоимость 1 км, ₽/км', totalExpenses / data.report.distance);
+        }
       }
       excel.setDefaultSheet('Сводка');
     }
@@ -1147,6 +1214,11 @@ class MonthlyReportExportService {
           TextCellValue(_formatDate(expense['date'])),
           TextCellValue(expense['time']?.toString() ?? ''),
           TextCellValue(expense['category']?.toString() ?? ''),
+          TextCellValue(
+            expense['category']?.toString() == 'Домашнее топливо'
+                ? _periodTitle(expense['period_month']?.toString())
+                : '',
+          ),
           TextCellValue(expense['description']?.toString() ?? ''),
           DoubleCellValue((expense['amount'] as num?)?.toDouble() ?? 0),
         ]);
@@ -1257,6 +1329,10 @@ class _MonthlyExportData {
     required this.mileage,
     required this.orderPayments,
     required this.tripPayouts,
+    required this.homeFuelForPeriod,
+    required this.homeFuelPaymentsInMonth,
+    required this.tripAccruedTarget,
+    required this.monthKey,
   });
 
   final MonthReport report;
@@ -1268,6 +1344,10 @@ class _MonthlyExportData {
   final List<Map<String, Object?>> mileage;
   final List<Map<String, Object?>> orderPayments;
   final List<Map<String, Object?>> tripPayouts;
+  final List<Map<String, Object?>> homeFuelForPeriod;
+  final List<Map<String, Object?>> homeFuelPaymentsInMonth;
+  final double tripAccruedTarget;
+  final String monthKey;
 }
 
 class _FinancialStats {
